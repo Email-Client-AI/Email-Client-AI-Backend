@@ -1,3 +1,48 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
 spring:
   application:
     name: EmailClientAI
+
+  # Database Configuration (PostgreSQL)
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Client Configuration (CORS)
+client:
+  url: ${CLIENT_URL}
+
+# JWT Configuration
+jwt:
+  accessSignerKey: ${ACCESS_SIGNER_KEY}
+  refreshSignerKey: ${REFRESH_SIGNER_KEY}
+  valid-duration: ${VALID_DURATION} # 1 hour in seconds
+  refreshable-duration: ${REFRESHABLE_DURATION} # 30 days in seconds
+
+# Google OAuth Configuration
+google:
+  client-id: ${GOOGLE_CLIENT_ID}
+
+# Logging
+logging:
+  level:
+    com.finalproject.example.EmailClientAI: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+

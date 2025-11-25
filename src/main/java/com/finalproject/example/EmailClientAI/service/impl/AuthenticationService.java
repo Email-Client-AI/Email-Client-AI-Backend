@@ -1,5 +1,7 @@
-package com.finalproject.example.EmailClientAI.service;
+package com.finalproject.example.EmailClientAI.service.impl;
 
+import com.finalproject.example.EmailClientAI.configuration.enumeration.AuthenticationTokenType;
+import com.finalproject.example.EmailClientAI.utils.Utils;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -15,15 +17,12 @@ import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
 import com.finalproject.example.EmailClientAI.repository.InvalidatedTokenRepository;
 import com.finalproject.example.EmailClientAI.repository.UserRepository;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
+import org.checkerframework.checker.units.qual.A;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -34,7 +33,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.Date;
 import java.util.UUID;
 
@@ -124,49 +122,7 @@ public class AuthenticationService {
 
     @Transactional
     public AuthenticationResponse loginWithGoogle(GoogleLoginRequest request) {
-        try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                    new NetHttpTransport(), new GsonFactory())
-                    .setAudience(Collections.singletonList(GOOGLE_CLIENT_ID))
-                    .build();
-
-            GoogleIdToken idToken = verifier.verify(request.getGoogleToken());
-            if (idToken == null) {
-                throw new AppException(ErrorCode.INVALID_GOOGLE_TOKEN);
-            }
-
-            GoogleIdToken.Payload payload = idToken.getPayload();
-            String googleId = payload.getSubject();
-            String email = payload.getEmail();
-            String name = (String) payload.get("name");
-
-            // Check if user exists with Google ID
-            User user = userRepository.findByGoogleId(googleId)
-                    .orElseGet(() -> {
-                        // Check if user exists with email
-                        return userRepository.findByEmail(email)
-                                .map(existingUser -> {
-                                    // Link Google account to existing user
-                                    existingUser.setGoogleId(googleId);
-                                    return userRepository.save(existingUser);
-                                })
-                                .orElseGet(() -> {
-                                    // Create new user
-                                    User newUser = User.builder()
-                                            .email(email)
-                                            .name(name)
-                                            .googleId(googleId)
-                                            .password(passwordEncoder.encode(UUID.randomUUID().toString())) // Random password
-                                            .build();
-                                    return userRepository.save(newUser);
-                                });
-                    });
-
-            return buildAuthenticationResponse(user);
-
-        } catch (Exception e) {
-            throw new AppException(ErrorCode.INVALID_GOOGLE_TOKEN);
-        }
+        return null;
     }
 
     @Transactional
@@ -220,8 +176,8 @@ public class AuthenticationService {
         String acId = UUID.randomUUID().toString();
         String rfId = UUID.randomUUID().toString();
 
-        String accessToken = generateToken(user, VALID_DURATION, acId, rfId, ACCESS_SIGNER_KEY);
-        String refreshToken = generateToken(user, REFRESHABLE_DURATION, rfId, acId, REFRESH_SIGNER_KEY);
+        String accessToken = Utils.generateToken(user, VALID_DURATION, acId, rfId, ACCESS_SIGNER_KEY, AuthenticationTokenType.ACCESS_TOKEN);
+        String refreshToken = Utils.generateToken(user, REFRESHABLE_DURATION, rfId, acId, REFRESH_SIGNER_KEY, AuthenticationTokenType.REFRESH_TOKEN);
 
         UserResponse userResponse = UserResponse.builder()
                 .id(user.getId())
@@ -231,7 +187,6 @@ public class AuthenticationService {
 
         return AuthenticationResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
                 .user(userResponse)
                 .build();
     }
@@ -267,68 +222,5 @@ public class AuthenticationService {
         }
     }
 
-    private String generateToken(User user, long duration, String id, String otherId, String signerKey) {
-        log.debug("Generating token - signerKey length: {}, duration: {}",
-                signerKey != null ? signerKey.length() : "null", duration);
 
-        if (signerKey == null || signerKey.isEmpty()) {
-            log.error("Signer key is null or empty!");
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
-        }
-
-        if (signerKey.length() < 32) {
-            log.error("Signer key is too short: {} bytes (minimum 32 required)", signerKey.length());
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
-        }
-
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.HS512).build();
-        JWTClaimsSet claimsSet;
-
-        if (signerKey.equals(ACCESS_SIGNER_KEY)) {
-            log.debug("Building access token claims");
-            claimsSet = buildAccessTokenClaims(user, duration, id, otherId);
-        } else {
-            log.debug("Building refresh token claims");
-            claimsSet = buildRefreshTokenClaims(user, duration, id, otherId);
-        }
-
-        Payload payload = claimsSet.toPayload();
-
-        JWSObject jwsObject = new JWSObject(header, payload);
-
-        try {
-            log.debug("Signing token with MACSigner...");
-            jwsObject.sign(new MACSigner(signerKey));
-            String token = jwsObject.serialize();
-            log.debug("Token generated successfully");
-            return token;
-        } catch (JOSEException e) {
-            log.error("Error signing token: {}", e.getMessage(), e);
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
-        }
-    }
-
-    private JWTClaimsSet buildAccessTokenClaims(User user, long duration, String id, String otherId) {
-        return new JWTClaimsSet.Builder()
-                .subject(user.getId())
-                .jwtID(id)
-                .issuer("EmailClientAI")
-                .issueTime(new Date())
-                .expirationTime(new Date(Instant.now().plus(duration, ChronoUnit.SECONDS).toEpochMilli()))
-                .claim("rfId", otherId)
-                .claim("email", user.getEmail())
-                .claim("name", user.getName())
-                .build();
-    }
-
-    private JWTClaimsSet buildRefreshTokenClaims(User user, long duration, String id, String otherId) {
-        return new JWTClaimsSet.Builder()
-                .subject(user.getId())
-                .jwtID(id)
-                .issuer("EmailClientAI")
-                .issueTime(new Date())
-                .expirationTime(new Date(Instant.now().plus(duration, ChronoUnit.SECONDS).toEpochMilli()))
-                .claim("acId", otherId)
-                .build();
-    }
 }

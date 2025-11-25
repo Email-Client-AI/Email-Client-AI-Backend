@@ -3,7 +3,7 @@ package com.finalproject.example.EmailClientAI.configuration;
 import com.finalproject.example.EmailClientAI.dto.request.IntrospectRequest;
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
-import com.finalproject.example.EmailClientAI.service.AuthenticationService;
+import com.finalproject.example.EmailClientAI.service.impl.AuthenticationService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;

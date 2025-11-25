@@ -10,6 +10,6 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class GoogleLoginRequest {
-    @NotBlank(message = "Google token is required")
-    String googleToken;
+    @NotBlank(message = "Authorization code is required")
+    String code;
 }

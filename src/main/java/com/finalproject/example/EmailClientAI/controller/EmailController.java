@@ -5,7 +5,7 @@ import com.finalproject.example.EmailClientAI.dto.response.EmailDetailResponse;
 import com.finalproject.example.EmailClientAI.dto.response.EmailListResponse;
 import com.finalproject.example.EmailClientAI.dto.response.MailboxResponse;
 import com.finalproject.example.EmailClientAI.dto.response.PageResponse;
-import com.finalproject.example.EmailClientAI.service.EmailService;
+import com.finalproject.example.EmailClientAI.service.impl.EmailService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;

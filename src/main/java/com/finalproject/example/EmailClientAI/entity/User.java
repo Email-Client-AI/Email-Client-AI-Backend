@@ -28,8 +28,8 @@ public class User {
     @Column(nullable = false)
     String name;
 
-    @Column(unique = true, name = "google_id")
-    String googleId; // For Google OAuth
+    @Column(unique = true, name = "sub")
+    String sub; // unique identifier for Google OAuth2 users
 
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt;

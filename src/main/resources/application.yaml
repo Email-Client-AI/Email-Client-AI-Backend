@@ -38,6 +38,7 @@ jwt:
 # Google OAuth Configuration
 google:
   client-id: ${GOOGLE_CLIENT_ID}
+  redirect-uri: ${GOOGLE_REDIRECT_URI}
 
 # Logging
 logging:

@@ -1,4 +1,4 @@
-package com.finalproject.example.EmailClientAI.service;
+package com.finalproject.example.EmailClientAI.service.impl;
 
 import com.finalproject.example.EmailClientAI.entity.Email;
 import com.finalproject.example.EmailClientAI.entity.Mailbox;

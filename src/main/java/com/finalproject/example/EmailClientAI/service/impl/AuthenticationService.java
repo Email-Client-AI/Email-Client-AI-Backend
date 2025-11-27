@@ -3,14 +3,12 @@ package com.finalproject.example.EmailClientAI.service.impl;
 import com.finalproject.example.EmailClientAI.configuration.enumeration.AuthenticationTokenType;
 import com.finalproject.example.EmailClientAI.utils.Utils;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
-import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.finalproject.example.EmailClientAI.dto.request.*;
 import com.finalproject.example.EmailClientAI.dto.response.AuthenticationResponse;
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
-import com.finalproject.example.EmailClientAI.dto.response.UserResponse;
+import com.finalproject.example.EmailClientAI.dto.UserDTO;
 import com.finalproject.example.EmailClientAI.entity.InvalidatedToken;
 import com.finalproject.example.EmailClientAI.entity.User;
 import com.finalproject.example.EmailClientAI.exception.AppException;
@@ -22,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
-import org.checkerframework.checker.units.qual.A;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,7 +30,6 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 
@@ -121,29 +118,8 @@ public class AuthenticationService {
     }
 
     @Transactional
-    public AuthenticationResponse loginWithGoogle(GoogleLoginRequest request) {
-        return null;
-    }
-
-    @Transactional
-    public void logout(LogoutRequest request) {
-        try {
-            SignedJWT signedJWT = SignedJWT.parse(request.getToken());
-            String acId = signedJWT.getJWTClaimsSet().getJWTID();
-            String rfId = signedJWT.getJWTClaimsSet().getClaim("rfId").toString();
-
-            Instant expirationInstant = signedJWT.getJWTClaimsSet().getExpirationTime().toInstant();
-            LocalDateTime expirationTime = LocalDateTime.ofInstant(expirationInstant, ZoneId.systemDefault());
-            expirationTime = expirationTime.plusSeconds(REFRESHABLE_DURATION - VALID_DURATION);
-
-            invalidatedTokenRepository.save(InvalidatedToken.builder()
-                    .accessId(acId)
-                    .refreshId(rfId)
-                    .expirationTime(expirationTime)
-                    .build());
-        } catch (ParseException e) {
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
-        }
+    public void logout(String refreshToken, String deviceId) {
+        if(StringUtils.isNotBlank())
     }
 
     @Transactional
@@ -163,7 +139,7 @@ public class AuthenticationService {
                     .expirationTime(expirationTime)
                     .build());
 
-            User user = userRepository.findById(signedJWT.getJWTClaimsSet().getSubject())
+            User user = userRepository.findById(UUID.fromString(signedJWT.getJWTClaimsSet().getSubject()))
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
             return buildAuthenticationResponse(user);
@@ -179,15 +155,15 @@ public class AuthenticationService {
         String accessToken = Utils.generateToken(user, VALID_DURATION, acId, rfId, ACCESS_SIGNER_KEY, AuthenticationTokenType.ACCESS_TOKEN);
         String refreshToken = Utils.generateToken(user, REFRESHABLE_DURATION, rfId, acId, REFRESH_SIGNER_KEY, AuthenticationTokenType.REFRESH_TOKEN);
 
-        UserResponse userResponse = UserResponse.builder()
-                .id(user.getId())
+        UserDTO userDTO = UserDTO.builder()
+                .id(String.valueOf(user.getId()))
                 .email(user.getEmail())
                 .name(user.getName())
                 .build();
 
         return AuthenticationResponse.builder()
                 .accessToken(accessToken)
-                .user(userResponse)
+                .user(userDTO)
                 .build();
     }
 

@@ -3,13 +3,20 @@ package com.finalproject.example.EmailClientAI.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finalproject.example.EmailClientAI.configuration.enumeration.AuthenticationTokenType;
 import com.finalproject.example.EmailClientAI.dto.AuthenticationDTO;
 import com.finalproject.example.EmailClientAI.dto.request.GoogleLoginRequest;
-import com.finalproject.example.EmailClientAI.dto.response.AuthenticationResponse;
 import com.finalproject.example.EmailClientAI.entity.User;
+import com.finalproject.example.EmailClientAI.entity.UserSession;
+import com.finalproject.example.EmailClientAI.exception.AppException;
+import com.finalproject.example.EmailClientAI.exception.ErrorCode;
+import com.finalproject.example.EmailClientAI.mapper.UserMapper;
 import com.finalproject.example.EmailClientAI.repository.UserRepository;
+import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
 import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
+import com.finalproject.example.EmailClientAI.utils.Utils;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -17,11 +24,13 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -38,24 +47,41 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
     @Value("${google.redirect-uri}")
     private String redirectUri;
 
+    @NonFinal
+    @Value("${jwt.accessSignerKey}")
+    String accessSignerKey;
+
+    @NonFinal
+    @Value("${jwt.valid-duration}")
+    Long validDuration;
+
+    @NonFinal
+    @Value("${authentication.hashAlgorithm}")
+    String hashAlgorithm;
+
+    @NonFinal
+    @Value("${jwt.refreshable-duration}")
+    Long refreshTokenDuration;
+
     private final UserRepository userRepository;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper;
-
+    private final UserSessionRepository userSessionRepository;
+    private final UserMapper userMapper;
 
     @Override
     public AuthenticationDTO exchangeCodeAndLogin(GoogleLoginRequest request) {
-        HttpHeaders headers = new HttpHeaders();
+        var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+        var map = new LinkedMultiValueMap<String, String>();
         map.add("code", request.getCode());
         map.add("client_id", clientId);
         map.add("client_secret", clientSecret);
         map.add("redirect_uri", redirectUri);
         map.add("grant_type", "authorization_code");
 
-        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(map, headers);
+        var entity = new HttpEntity<>(map, headers);
 
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 "https://oauth2.googleapis.com/token",
@@ -65,41 +91,44 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                 }
         );
 
-        Map<String, Object> body = response.getBody();
-        if (body == null) throw new RuntimeException("Empty response from Google");
+        var body = response.getBody();
+        if (body == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-        String accessToken  = (String) body.get("access_token");
-        String refreshToken = (String) body.get("refresh_token"); // may be null
-        String idTokenString = (String) body.get("id_token");
-        Long expiresIn = Long.valueOf(body.get("expires_in").toString());
+        var googleAccessToken = (String) body.get("access_token");
+        var googleRefreshToken = (String) body.get("refresh_token"); // may be null
+        var googleIdToken = (String) body.get("id_token");
+        // var expiresIn = Long.valueOf(body.get("expires_in").toString());
 
         // 4. Decode ID Token to get User Info
-        GoogleUserInfo userInfo = extractUserInfo(idTokenString);
+        var userInfo = extractUserInfo(googleIdToken);
+        var user = processUserLogin(userInfo);
 
-        // 5. Find or Create User in DB
-        User user = processUserLogin(userInfo, refreshToken, accessToken, expiresIn);
+        String acId = UUID.randomUUID().toString();
+        String rfId = UUID.randomUUID().toString();
+        var appAccessToken = Utils.generateToken(user, validDuration, acId, rfId, accessSignerKey, AuthenticationTokenType.ACCESS_TOKEN);
+        var appRefreshToken = Utils.generateRawToken();
+        var appHashedRefreshToken = Utils.hashToken(appRefreshToken, hashAlgorithm);
+        var deviceId = UUID.randomUUID().toString();
+        var expiresAt = Instant.now().plus(refreshTokenDuration, ChronoUnit.SECONDS);
 
-        // Step 3: Find or create user in your DB
-        User user = userRepository.findBySub()
+        var newUserSession = UserSession.builder()
+                .userId(user.getId())
+                .googleAccessToken(googleAccessToken)
+                .googleRefreshToken(googleRefreshToken)
+                .appRefreshToken(appHashedRefreshToken)
+                .deviceId(deviceId)
+                .expiresAt(expiresAt)
+                .build();
 
-        // Step 4: Store refresh token securely (if received)
-        if (refreshToken != null) {
-            user.setGoogleRefreshToken(refreshToken); // encrypt in real app!
-            userRepository.save(user);
-        }
+        userSessionRepository.save(newUserSession);
 
-        // Step 5: Generate your own JWT for session
-        String yourJwt = jwtTokenProvider.generateToken(user);
-
-        // Step 6: Return everything to frontend
-        return new GoogleAuthResponse(
-                accessToken,
-                refreshToken,
-                idTokenString,
-                expiresIn,
-                (String) body.get("scope"),
-                yourJwt
-        );
+        var userDTO = userMapper.toDto(user);
+        return AuthenticationDTO.builder()
+                .refreshToken(appRefreshToken)
+                .deviceId(deviceId)
+                .accessToken(appAccessToken)
+                .user(userDTO)
+                .build();
     }
 
     private GoogleUserInfo extractUserInfo(String idToken) {
@@ -124,47 +153,19 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
     /**
      * Logic to Sync User with Database
      */
-    private User processUserLogin(GoogleUserInfo googleUser, String googleRefreshToken, String google) {
-        // Try to find by Google ID ("sub")
+    private User processUserLogin(GoogleUserInfo googleUser) {
         return userRepository.findBySub(googleUser.sub())
                 .map(existingUser -> {
-                    // Update existing user info if needed
                     existingUser.setName(googleUser.name());
-                    // If we got a new refresh token from Google, save it (encrypt this in real life!)
-                    if (googleRefreshToken != null) {
-                        existingUser.setGoogleRefreshToken(googleRefreshToken);
-                    }
                     return userRepository.save(existingUser);
                 })
                 .orElseGet(() -> {
-                    // Create new user
-                    // Check if email already exists (e.g., signed up with password previously)
-                    return userRepository.findByEmail(googleUser.email())
-                            .map(existingEmailUser -> {
-                                // Link Google account to existing email account
-                                existingEmailUser.setSub(googleUser.sub());
-                                if (googleRefreshToken != null) {
-                                    existingEmailUser.setGoogleRefreshToken(googleRefreshToken);
-                                }
-                                return userRepository.save(existingEmailUser);
-                            })
-                            .orElseGet(() -> {
-                                // Totally new user
-                                User newUser = new User();
-                                newUser.setEmail(googleUser.email());
-                                newUser.setName(googleUser.name());
-                                newUser.setSub(googleUser.sub());
-
-                                // Handle Non-Nullable Password
-                                // Generate a random UUID as password since they login via Google
-                                newUser.setPassword(UUID.randomUUID().toString());
-
-                                if (googleRefreshToken != null) {
-                                    newUser.setGoogleRefreshToken(googleRefreshToken);
-                                }
-
-                                return userRepository.save(newUser);
-                            });
+                    var newUser = User.builder()
+                            .sub(googleUser.sub())
+                            .email(googleUser.email())
+                            .name(googleUser.name())
+                            .build();
+                    return userRepository.save(newUser);
                 });
     }
 

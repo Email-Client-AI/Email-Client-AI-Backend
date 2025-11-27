@@ -1,4 +1,4 @@
-package com.finalproject.example.EmailClientAI.dto.response;
+package com.finalproject.example.EmailClientAI.dto;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -8,7 +8,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserResponse {
+public class UserDTO {
     String id;
     String email;
     String name;

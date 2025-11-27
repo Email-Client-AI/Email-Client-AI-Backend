@@ -7,10 +7,12 @@ import com.finalproject.example.EmailClientAI.dto.response.AuthenticationRespons
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
 import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
 import com.finalproject.example.EmailClientAI.service.impl.AuthenticationService;
+import com.finalproject.example.EmailClientAI.utils.Utils;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,8 +43,13 @@ public class AuthenticationController {
 
     @PostMapping("/google")
     public ResponseEntity<AuthenticationDTO> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
-        AuthenticationDTO authenticationDTO = googleOAuthService.exchangeCodeAndLogin(request);
-        return ResponseEntity.ok(authenticationDTO);
+        var authenticationDTO = googleOAuthService.exchangeCodeAndLogin(request);
+        var refreshCookie = Utils.createHttpOnlyCookie("refresh_token", authenticationDTO.getRefreshToken());
+        var deviceCookie = Utils.createHttpOnlyCookie("device_id", authenticationDTO.getDeviceId());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, deviceCookie.toString())
+                .body(authenticationDTO);
     }
 
     @PostMapping("/refresh")
@@ -54,11 +61,10 @@ public class AuthenticationController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@Valid @RequestBody LogoutRequest request) {
-        authenticationService.logout(request);
-        return ApiResponse.<Void>builder()
-                .message("Logout successful")
-                .build();
+    public ResponseEntity<Void> logout(@CookieValue(name = "refresh_token") String refreshToken,
+                                       @CookieValue(name = "device_id") String deviceId) {
+        authenticationService.logout(refreshToken, deviceId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/introspect")

@@ -12,6 +12,7 @@ import com.nimbusds.jwt.SignedJWT;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -71,7 +72,7 @@ public final class Utils {
 
     public static JWTClaimsSet buildAccessTokenClaims(User user, long duration, String id, String otherId) {
         return new JWTClaimsSet.Builder()
-                .subject(user.getId())
+                .subject(String.valueOf(user.getId()))
                 .jwtID(id)
                 .issuer("EmailClientAI")
                 .issueTime(new Date())
@@ -84,7 +85,7 @@ public final class Utils {
 
     public static JWTClaimsSet buildRefreshTokenClaims(User user, long duration, String id, String otherId) {
         return new JWTClaimsSet.Builder()
-                .subject(user.getId())
+                .subject(String.valueOf(user.getId()))
                 .jwtID(id)
                 .issuer("EmailClientAI")
                 .issueTime(new Date())
@@ -100,13 +101,23 @@ public final class Utils {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
-    public String hashToken(String rawToken) {
+    public static String hashToken(String rawToken, String algorithm) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance(algorithm);
             byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not available", e);
+            // Throw a clear error if the environment variable has a typo
+            throw new RuntimeException("Hashing algorithm not supported: " + algorithm, e);
         }
+    }
+
+    public static ResponseCookie createHttpOnlyCookie(String name, String value) {
+        return ResponseCookie.from(name, value)
+                .httpOnly(true)       // 1. JavaScript cannot read this
+                .secure(true)         // 2. HTTPS only (Required for production)
+                .sameSite("Strict")   // 3. CSRF protection
+                .path("/")            // 4. Available across the app
+                .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.finalproject.example.EmailClientAI.dto.response;
 
+import com.finalproject.example.EmailClientAI.dto.UserDTO;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -10,5 +11,5 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuthenticationResponse {
     String accessToken;
-    UserResponse user;
+    UserDTO user;
 }

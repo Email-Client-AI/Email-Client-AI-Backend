@@ -1,7 +1,6 @@
 package com.finalproject.example.EmailClientAI.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.finalproject.example.EmailClientAI.dto.response.UserResponse;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -13,6 +12,8 @@ import lombok.experimental.FieldDefaults;
 public class AuthenticationDTO {
     @JsonIgnore
     String refreshToken;
+    @JsonIgnore
+    String deviceId;
     String accessToken;
-    UserResponse user;
+    UserDTO user;
 }

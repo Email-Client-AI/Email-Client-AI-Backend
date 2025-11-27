@@ -4,19 +4,20 @@ package com.finalproject.example.EmailClientAI.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.SuperBuilder;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "user_sessions")
 @Getter
 @Setter
-@Builder
+@SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserSession {
+public class UserSession extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private UUID id;
@@ -30,14 +31,14 @@ public class UserSession {
     @Column(name = "google_refresh_token", nullable = false, length = 2048)
     private String googleRefreshToken;
 
-    @Column(name = "my_refresh_token", nullable = false, length = 512)
-    private String myRefreshToken;        // random UUID or 256-bit
+    @Column(name = "app_refresh_token", nullable = false, length = 512)
+    private String appRefreshToken;        // random UUID or 256-bit
 
     @Column(name = "device_id", nullable = false, length = 512)
     private String deviceId;              // UUID or fingerprint
 
     @Column(name = "expires_at", nullable = false)
-    private LocalDateTime expiresAt;      // e.g. 90 days
+    private Instant expiresAt;      // e.g. 90 days
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)

@@ -29,7 +29,9 @@ public enum ErrorCode {
 
     // General
     UNCATEGORIZED_EXCEPTION(500, "Uncategorized exception", HttpStatus.INTERNAL_SERVER_ERROR),
-    VALIDATION_ERROR(400, "Validation error", HttpStatus.BAD_REQUEST);
+    VALIDATION_ERROR(400, "Validation error", HttpStatus.BAD_REQUEST),
+
+    INVALID_LOGOUT_REQUEST(400, "Invalid logout request", HttpStatus.BAD_REQUEST);
 
     int code;
     String message;

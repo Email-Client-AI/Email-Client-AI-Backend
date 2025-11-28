@@ -1,6 +1,9 @@
 package com.finalproject.example.EmailClientAI.service.impl;
 
 import com.finalproject.example.EmailClientAI.configuration.enumeration.AuthenticationTokenType;
+import com.finalproject.example.EmailClientAI.dto.AuthenticationDTO;
+import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
+import com.finalproject.example.EmailClientAI.service.AuthenticationService;
 import com.finalproject.example.EmailClientAI.utils.Utils;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -37,11 +40,12 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AuthenticationService {
+public class AuthenticationServiceIml implements AuthenticationService {
 
-    InvalidatedTokenRepository invalidatedTokenRepository;
-    UserRepository userRepository;
-    PasswordEncoder passwordEncoder;
+    private final InvalidatedTokenRepository invalidatedTokenRepository;
+    private final UserRepository userRepository;
+    private final UserSessionRepository userSessionRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @NonFinal
     @Value("${jwt.accessSignerKey}")
@@ -63,6 +67,11 @@ public class AuthenticationService {
     @Value("${google.client-id}")
     String GOOGLE_CLIENT_ID;
 
+    @NonFinal
+    @Value("${authentication.hashAlgorithm}")
+    String hashAlgorithm;
+
+    @Override
     public IntrospectResponse introspect(IntrospectRequest request) {
         boolean isValid = true;
 
@@ -77,6 +86,7 @@ public class AuthenticationService {
                 .build();
     }
 
+    @Override
     @Transactional
     public AuthenticationResponse register(RegisterRequest request) {
         log.info("Register request received: {}", request);
@@ -106,6 +116,7 @@ public class AuthenticationService {
         }
     }
 
+    @Override
     public AuthenticationResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_EMAIL_PASSWORD));
@@ -117,43 +128,44 @@ public class AuthenticationService {
         return buildAuthenticationResponse(user);
     }
 
+    @Override
     @Transactional
     public void logout(String refreshToken, String deviceId) {
-        if(StringUtils.isNotBlank())
+        if(StringUtils.isBlank(refreshToken) || StringUtils.isBlank(deviceId)) {
+            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
+        }
+
+        var userSessionOpt = userSessionRepository.findByAppRefreshTokenAndDeviceId(
+                Utils.hashToken(refreshToken, hashAlgorithm), deviceId);
+
+        if (userSessionOpt.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
+        }
+        userSessionRepository.delete(userSessionOpt.get());
     }
 
+    @Override
     @Transactional
-    public AuthenticationResponse refresh(RefreshTokenRequest request) {
-        SignedJWT signedJWT = verifyToken(request.getRefreshToken(), true);
-
-        try {
-            String acId = signedJWT.getJWTClaimsSet().getClaim("acId").toString();
-            String rfId = signedJWT.getJWTClaimsSet().getJWTID();
-
-            Instant expirationInstant = signedJWT.getJWTClaimsSet().getExpirationTime().toInstant();
-            LocalDateTime expirationTime = LocalDateTime.ofInstant(expirationInstant, ZoneId.systemDefault());
-
-            invalidatedTokenRepository.save(InvalidatedToken.builder()
-                    .accessId(acId)
-                    .refreshId(rfId)
-                    .expirationTime(expirationTime)
-                    .build());
-
-            User user = userRepository.findById(UUID.fromString(signedJWT.getJWTClaimsSet().getSubject()))
-                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-            return buildAuthenticationResponse(user);
-        } catch (ParseException e) {
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+    public AuthenticationDTO refresh(String refreshToken, String deviceId) {
+        if(StringUtils.isBlank(refreshToken) || StringUtils.isBlank(deviceId)) {
+            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
         }
+
+        var userSessionOpt = userSessionRepository.findByAppRefreshTokenAndDeviceId(
+                Utils.hashToken(refreshToken, hashAlgorithm), deviceId);
+
+        if (userSessionOpt.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
+        }
+        userSessionRepository.delete(userSessionOpt.get());
     }
 
     private AuthenticationResponse buildAuthenticationResponse(User user) {
         String acId = UUID.randomUUID().toString();
         String rfId = UUID.randomUUID().toString();
 
-        String accessToken = Utils.generateToken(user, VALID_DURATION, acId, rfId, ACCESS_SIGNER_KEY, AuthenticationTokenType.ACCESS_TOKEN);
-        String refreshToken = Utils.generateToken(user, REFRESHABLE_DURATION, rfId, acId, REFRESH_SIGNER_KEY, AuthenticationTokenType.REFRESH_TOKEN);
+        // String accessToken = Utils.generateToken(user, VALID_DURATION, acId, rfId, ACCESS_SIGNER_KEY, AuthenticationTokenType.ACCESS_TOKEN);
+        // String refreshToken = Utils.generateToken(user, REFRESHABLE_DURATION, rfId, acId, REFRESH_SIGNER_KEY, AuthenticationTokenType.REFRESH_TOKEN);
 
         UserDTO userDTO = UserDTO.builder()
                 .id(String.valueOf(user.getId()))
@@ -162,7 +174,7 @@ public class AuthenticationService {
                 .build();
 
         return AuthenticationResponse.builder()
-                .accessToken(accessToken)
+                .accessToken(null)
                 .user(userDTO)
                 .build();
     }
@@ -195,6 +207,20 @@ public class AuthenticationService {
             return signedJWT;
         } catch (ParseException | JOSEException e) {
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+        }
+    }
+
+    private boolean validateRefreshTokenWithDevice(String refreshToken, String deviceId) {
+        var userSessionOpt = userSessionRepository.findByAppRefreshTokenAndDeviceId(
+                Utils.hashToken(refreshToken, hashAlgorithm), deviceId);
+        if (userSessionOpt.isEmpty()) {
+            return false;
+        } else {
+            var userSession = userSessionOpt.get();
+            if (userSession.getExpiresAt().isBefore(Instant.now())) {
+                return false;
+            }
+            return true;
         }
     }
 

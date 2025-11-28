@@ -6,7 +6,7 @@ import com.finalproject.example.EmailClientAI.dto.response.ApiResponse;
 import com.finalproject.example.EmailClientAI.dto.response.AuthenticationResponse;
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
 import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
-import com.finalproject.example.EmailClientAI.service.impl.AuthenticationService;
+import com.finalproject.example.EmailClientAI.service.impl.AuthenticationServiceIml;
 import com.finalproject.example.EmailClientAI.utils.Utils;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -22,13 +22,13 @@ import org.springframework.web.bind.annotation.*;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationController {
 
-    private final AuthenticationService authenticationService;
+    private final AuthenticationServiceIml authenticationServiceIml;
     private final GoogleOAuthService googleOAuthService;
 
     @PostMapping("/register")
     public ApiResponse<AuthenticationResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ApiResponse.<AuthenticationResponse>builder()
-                .data(authenticationService.register(request))
+                .data(authenticationServiceIml.register(request))
                 .message("User registered successfully")
                 .build();
     }
@@ -36,7 +36,7 @@ public class AuthenticationController {
     @PostMapping("/login")
     public ApiResponse<AuthenticationResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.<AuthenticationResponse>builder()
-                .data(authenticationService.login(request))
+                .data(authenticationServiceIml.login(request))
                 .message("Login successful")
                 .build();
     }
@@ -53,24 +53,28 @@ public class AuthenticationController {
     }
 
     @PostMapping("/refresh")
-    public ApiResponse<AuthenticationResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
-        return ApiResponse.<AuthenticationResponse>builder()
-                .data(authenticationService.refresh(request))
-                .message("Token refreshed successfully")
-                .build();
+    public ApiResponse<AuthenticationDTO> refresh(@CookieValue(name = "refresh_token") String refreshToken,
+                                                  @CookieValue(name = "device_id") String deviceId) {
+        var authenticationDTO = authenticationServiceIml.exchangeCodeAndLogin(request);
+        var refreshCookie = Utils.createHttpOnlyCookie("refresh_token", authenticationDTO.getRefreshToken());
+        var deviceCookie = Utils.createHttpOnlyCookie("device_id", authenticationDTO.getDeviceId());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, deviceCookie.toString())
+                .body(authenticationDTO);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(name = "refresh_token") String refreshToken,
                                        @CookieValue(name = "device_id") String deviceId) {
-        authenticationService.logout(refreshToken, deviceId);
+        authenticationServiceIml.logout(refreshToken, deviceId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/introspect")
     public ApiResponse<IntrospectResponse> introspect(@RequestBody IntrospectRequest request) {
         return ApiResponse.<IntrospectResponse>builder()
-                .data(authenticationService.introspect(request))
+                .data(authenticationServiceIml.introspect(request))
                 .build();
     }
 }

@@ -29,10 +29,7 @@ public final class Utils {
 
     private static final SecureRandom secureRandom = new SecureRandom();
 
-    public static String generateToken(User user, long duration, String id, String otherId, String signerKey, AuthenticationTokenType tokenType) {
-        log.debug("Generating token - signerKey length: {}, duration: {}",
-                signerKey != null ? signerKey.length() : "null", duration);
-
+    public static String generateAccessToken(User user, long duration, String id, String signerKey) {
         if (signerKey == null || signerKey.isEmpty()) {
             log.error("Signer key is null or empty!");
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);

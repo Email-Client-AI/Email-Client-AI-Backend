@@ -3,7 +3,7 @@ package com.finalproject.example.EmailClientAI.configuration;
 import com.finalproject.example.EmailClientAI.dto.request.IntrospectRequest;
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
-import com.finalproject.example.EmailClientAI.service.impl.AuthenticationService;
+import com.finalproject.example.EmailClientAI.service.impl.AuthenticationServiceIml;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -24,7 +24,7 @@ import java.util.Objects;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CustomJwtDecoder implements JwtDecoder {
 
-    AuthenticationService authenticationService;
+    AuthenticationServiceIml authenticationServiceIml;
 
     @NonFinal
     @Value("${jwt.accessSignerKey}")
@@ -35,7 +35,7 @@ public class CustomJwtDecoder implements JwtDecoder {
 
     @Override
     public Jwt decode(String token) throws JwtException {
-        IntrospectResponse introspectResponse = authenticationService.introspect(
+        IntrospectResponse introspectResponse = authenticationServiceIml.introspect(
                 IntrospectRequest.builder().token(token).build());
 
         if (!introspectResponse.isValid()) {

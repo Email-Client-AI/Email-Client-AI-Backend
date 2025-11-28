@@ -105,27 +105,15 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
 
         String acId = UUID.randomUUID().toString();
         String rfId = UUID.randomUUID().toString();
-        var appAccessToken = Utils.generateToken(user, validDuration, acId, rfId, accessSignerKey, AuthenticationTokenType.ACCESS_TOKEN);
-        var appRefreshToken = Utils.generateRawToken();
-        var appHashedRefreshToken = Utils.hashToken(appRefreshToken, hashAlgorithm);
-        var deviceId = UUID.randomUUID().toString();
-        var expiresAt = Instant.now().plus(refreshTokenDuration, ChronoUnit.SECONDS);
-
-        var newUserSession = UserSession.builder()
-                .userId(user.getId())
-                .googleAccessToken(googleAccessToken)
-                .googleRefreshToken(googleRefreshToken)
-                .appRefreshToken(appHashedRefreshToken)
-                .deviceId(deviceId)
-                .expiresAt(expiresAt)
-                .build();
+        var appAccessToken = Utils.generateAccessToken(user, validDuration, acId, rfId, accessSignerKey, AuthenticationTokenType.ACCESS_TOKEN);
+        var newUserSession = generateUserSessionWithTokens(user, googleAccessToken, googleRefreshToken);
 
         userSessionRepository.save(newUserSession);
 
         var userDTO = userMapper.toDto(user);
         return AuthenticationDTO.builder()
-                .refreshToken(appRefreshToken)
-                .deviceId(deviceId)
+                .refreshToken(newUserSession.getAppRefreshToken())
+                .deviceId(newUserSession.getDeviceId())
                 .accessToken(appAccessToken)
                 .user(userDTO)
                 .build();
@@ -168,6 +156,25 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                     return userRepository.save(newUser);
                 });
     }
+
+    private UserSession generateUserSessionWithTokens(User user, String googleAccessToken, String googleRefreshToken) {
+
+        String appRefreshToken = Utils.generateRawToken();
+        String appHashedRefreshToken = Utils.hashToken(appRefreshToken, hashAlgorithm);
+
+        String deviceId = UUID.randomUUID().toString();
+        Instant expiresAt = Instant.now().plus(refreshTokenDuration, ChronoUnit.SECONDS);
+
+        return UserSession.builder()
+                .userId(user.getId())
+                .googleAccessToken(googleAccessToken)
+                .googleRefreshToken(googleRefreshToken)
+                .appRefreshToken(appHashedRefreshToken)
+                .deviceId(deviceId)
+                .expiresAt(expiresAt)
+                .build();
+    }
+
 
     // Simple Record to hold extracted data
     private record GoogleUserInfo(String sub, String email, String name, String picture) {}

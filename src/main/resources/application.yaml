@@ -9,9 +9,9 @@ spring:
 
   # Database Configuration (PostgreSQL)
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/email_client_ai}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:Lecaotuanvu.2004_postgres}
     driver-class-name: org.postgresql.Driver
 
   # JPA Configuration
@@ -26,14 +26,14 @@ spring:
 
 # Client Configuration (CORS)
 client:
-  url: ${CLIENT_URL}
+  url: ${CLIENT_URL:http://localhost:5173}
 
 # JWT Configuration
 jwt:
-  accessSignerKey: ${ACCESS_SIGNER_KEY}
-  refreshSignerKey: ${REFRESH_SIGNER_KEY}
-  valid-duration: ${VALID_DURATION} # 1 hour in seconds
-  refreshable-duration: ${REFRESHABLE_DURATION} # 30 days in seconds
+  accessSignerKey: ${ACCESS_SIGNER_KEY:8UzB3pQ9NS4kWJxFbLW2yCJf7EoP5Rm6ZQKdqTNj2uSfVpYGhAqBh8yB7mRKd4cD}
+  refreshSignerKey: ${REFRESH_SIGNER_KEY:yC86zWJkq3mPbGoD9XfHnA2Dt5QSw7RsLpKzFhTnVbNdRmApVyGbTzYcFkR8NxJp}
+  valid-duration: ${VALID_DURATION:3600} # 1 hour in seconds
+  refreshable-duration: ${REFRESHABLE_DURATION:2592000} # 30 days in seconds
 
 # Auth
 authentication:
@@ -41,8 +41,9 @@ authentication:
 
 # Google OAuth Configuration
 google:
-  client-id: ${GOOGLE_CLIENT_ID}
-  redirect-uri: ${GOOGLE_REDIRECT_URI}
+  client-id: ${GOOGLE_CLIENT_ID:814456609088-g8l48sm9c6s1fb6c6mf5kdlesdikmvg9.apps.googleusercontent.com}
+  client-secret: ${GOOGLE_CLIENT_SECRET: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}
+  redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:5173}
 
 # Logging
 logging:
@@ -51,3 +52,4 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
 
+environment: ${ENVIRONMENT:dev}

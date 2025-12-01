@@ -1,9 +1,11 @@
 package com.finalproject.example.EmailClientAI.service.impl;
 
-import com.finalproject.example.EmailClientAI.configuration.enumeration.AuthenticationTokenType;
 import com.finalproject.example.EmailClientAI.dto.AuthenticationDTO;
 import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
+import com.finalproject.example.EmailClientAI.security.SecurityUtils;
 import com.finalproject.example.EmailClientAI.service.AuthenticationService;
+import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
+import com.finalproject.example.EmailClientAI.service.JWTService;
 import com.finalproject.example.EmailClientAI.utils.Utils;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -12,7 +14,6 @@ import com.finalproject.example.EmailClientAI.dto.request.*;
 import com.finalproject.example.EmailClientAI.dto.response.AuthenticationResponse;
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
 import com.finalproject.example.EmailClientAI.dto.UserDTO;
-import com.finalproject.example.EmailClientAI.entity.InvalidatedToken;
 import com.finalproject.example.EmailClientAI.entity.User;
 import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
@@ -25,14 +26,13 @@ import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.ParseException;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Date;
 import java.util.UUID;
 
@@ -46,6 +46,8 @@ public class AuthenticationServiceIml implements AuthenticationService {
     private final UserRepository userRepository;
     private final UserSessionRepository userSessionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final GoogleOAuthService googleOAuthService;
+    private final JWTService jwtService;
 
     @NonFinal
     @Value("${jwt.accessSignerKey}")
@@ -70,6 +72,10 @@ public class AuthenticationServiceIml implements AuthenticationService {
     @NonFinal
     @Value("${authentication.hashAlgorithm}")
     String hashAlgorithm;
+
+    @NonFinal
+    @Value("${environment}")
+    String environment;
 
     @Override
     public IntrospectResponse introspect(IntrospectRequest request) {
@@ -135,29 +141,57 @@ public class AuthenticationServiceIml implements AuthenticationService {
             throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
         }
 
-        var userSessionOpt = userSessionRepository.findByAppRefreshTokenAndDeviceId(
-                Utils.hashToken(refreshToken, hashAlgorithm), deviceId);
+        var userSession = userSessionRepository.findByAppRefreshTokenAndDeviceId(
+                        Utils.hashToken(refreshToken, hashAlgorithm), deviceId)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_REQUEST));
 
-        if (userSessionOpt.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
+        if (userSession.getExpiresAt().isBefore(Instant.now())) {
+            throw new AppException(ErrorCode.SESSION_EXPIRED);
         }
-        userSessionRepository.delete(userSessionOpt.get());
+        userSessionRepository.delete(userSession);
     }
 
     @Override
     @Transactional
     public AuthenticationDTO refresh(String refreshToken, String deviceId) {
         if(StringUtils.isBlank(refreshToken) || StringUtils.isBlank(deviceId)) {
-            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
+            throw new AppException(ErrorCode.INVALID_REFRESH_REQUEST);
+        }
+        var hashedRefreshToken = Utils.hashToken(refreshToken, hashAlgorithm);
+        var userSession = userSessionRepository.findByAppRefreshTokenAndDeviceId(
+                        hashedRefreshToken, deviceId)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_REQUEST));
+
+        if (userSession.getExpiresAt().isBefore(Instant.now())) {
+            throw new AppException(ErrorCode.SESSION_EXPIRED);
         }
 
-        var userSessionOpt = userSessionRepository.findByAppRefreshTokenAndDeviceId(
-                Utils.hashToken(refreshToken, hashAlgorithm), deviceId);
+        var googleOAuthDTO = googleOAuthService.refreshAccessToken(userSession.getGoogleRefreshToken());
+        String acId = UUID.randomUUID().toString();
+        var appAccessToken = jwtService.generateAccessToken(userSession.getUser(), googleOAuthDTO.getAccessTokenExpiresIn(), acId);
+        String rawToken = Utils.generateRawToken();
+        var updatedUserSession = googleOAuthService.generateUserSessionWithTokens(userSession.getUser(), googleOAuthDTO.getAccessToken(), userSession.getGoogleAccessToken(), rawToken, googleOAuthDTO.getRefreshTokenExpiresIn());
+        updatedUserSession.setId(userSession.getId());
 
-        if (userSessionOpt.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_LOGOUT_REQUEST);
-        }
-        userSessionRepository.delete(userSessionOpt.get());
+        userSessionRepository.save(updatedUserSession);
+
+        return AuthenticationDTO.builder()
+                .refreshToken(rawToken)
+                .deviceId(updatedUserSession.getDeviceId())
+                .accessToken(appAccessToken)
+                .build();
+    }
+
+    @Override
+    public ResponseCookie createHttpOnlyCookie(String name, String value) {
+        String env = environment.toLowerCase();
+        return ResponseCookie.from(name, value)
+                .httpOnly(true)       // 1. JavaScript cannot read this
+                .secure(env.equals("production"))
+                .maxAge(7 * 24 * 60 * 60)
+                .sameSite(env.equals("production") ? "None" : "Lax")   // 3. CSRF protection
+                .path("/")            // 4. Available across the app
+                .build();
     }
 
     private AuthenticationResponse buildAuthenticationResponse(User user) {
@@ -210,19 +244,7 @@ public class AuthenticationServiceIml implements AuthenticationService {
         }
     }
 
-    private boolean validateRefreshTokenWithDevice(String refreshToken, String deviceId) {
-        var userSessionOpt = userSessionRepository.findByAppRefreshTokenAndDeviceId(
-                Utils.hashToken(refreshToken, hashAlgorithm), deviceId);
-        if (userSessionOpt.isEmpty()) {
-            return false;
-        } else {
-            var userSession = userSessionOpt.get();
-            if (userSession.getExpiresAt().isBefore(Instant.now())) {
-                return false;
-            }
-            return true;
-        }
-    }
+
 
 
 }

@@ -1,4 +1,4 @@
-package com.finalproject.example.EmailClientAI.configuration.enumeration;
+package com.finalproject.example.EmailClientAI.enumeration;
 
 public enum AuthenticationTokenType {
     ACCESS_TOKEN,

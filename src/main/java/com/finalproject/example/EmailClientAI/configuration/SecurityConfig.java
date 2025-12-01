@@ -9,18 +9,28 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+
+import java.util.List;
 
 @Slf4j
 @Configuration
@@ -47,61 +57,48 @@ public class SecurityConfig {
       "/swagger-ui.html"
   };
 
-  @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http, CustomJwtDecoder decoder) throws Exception {
+    private final JWTAuthFilter jwtAuthFilter;
 
-    http.authorizeHttpRequests(configurer -> {
-      configurer
-          .requestMatchers(HttpMethod.POST, PUBLIC_POST_ENDPOINTS).permitAll()
-          .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
-          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-          .anyRequest().authenticated();
-    });
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+        httpSecurity.csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(request -> request
+                        .requestMatchers(HttpMethod.POST, PUBLIC_POST_ENDPOINTS)
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS)
+                        .permitAll()
+                        .anyRequest().authenticated())
+                .sessionManagement(manager -> manager.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()))
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        return httpSecurity.build();
+    }
 
-    http.csrf(AbstractHttpConfigurer::disable);
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-    // Disable form login and HTTP Basic authentication
-    http.formLogin(AbstractHttpConfigurer::disable);
-    http.httpBasic(AbstractHttpConfigurer::disable);
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
 
-    http.oauth2ResourceServer(configurer -> configurer.jwt(jwtConfigurer -> jwtConfigurer
-        .decoder(decoder)
-        .jwtAuthenticationConverter(jwtAuthenticationConverter()))
-        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
 
-    return http.build();
-  }
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
 
-  @Bean
-  public CorsFilter corsFilter(@Value("${client.url}") String clientUrl) {
-    log.info("Client URL: {}", clientUrl);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-    CorsConfiguration config = new CorsConfiguration();
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
 
-    config.addAllowedOrigin(clientUrl);
-    config.addAllowedHeader("*");
-    config.addAllowedMethod("*");
-    config.setAllowCredentials(true);
+        configuration.setAllowCredentials(true);
 
-    UrlBasedCorsConfigurationSource urlBasedCorsConfigurationSource = new UrlBasedCorsConfigurationSource();
-    urlBasedCorsConfigurationSource.registerCorsConfiguration("/**", config);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-    return new CorsFilter(urlBasedCorsConfigurationSource);
-  }
+        source.registerCorsConfiguration("/**", configuration);
 
-  @Bean
-  public JwtAuthenticationConverter jwtAuthenticationConverter() {
-    JwtGrantedAuthoritiesConverter converter = new JwtGrantedAuthoritiesConverter();
-    converter.setAuthorityPrefix("");
-
-    JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-    jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(converter);
-
-    return jwtAuthenticationConverter;
-  }
-
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
-  }
+        return source;
+    }
 }

@@ -31,7 +31,10 @@ public enum ErrorCode {
     UNCATEGORIZED_EXCEPTION(500, "Uncategorized exception", HttpStatus.INTERNAL_SERVER_ERROR),
     VALIDATION_ERROR(400, "Validation error", HttpStatus.BAD_REQUEST),
 
-    INVALID_LOGOUT_REQUEST(400, "Invalid logout request", HttpStatus.BAD_REQUEST);
+    INVALID_LOGOUT_REQUEST(400, "Invalid logout request", HttpStatus.BAD_REQUEST),
+    INVALID_REFRESH_REQUEST(400, "Invalid refresh token request", HttpStatus.BAD_REQUEST),
+    SESSION_USER_MISMATCH(400, "Session does not belong to the user", HttpStatus.BAD_REQUEST),
+    SESSION_EXPIRED(400, "Session has expired", HttpStatus.BAD_REQUEST);
 
     int code;
     String message;

@@ -11,5 +11,4 @@ public class EmailClientAiApplication {
   public static void main(String[] args) {
     SpringApplication.run(EmailClientAiApplication.class, args);
   }
-
 }

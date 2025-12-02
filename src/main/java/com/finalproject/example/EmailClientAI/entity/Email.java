@@ -1,63 +1,67 @@
 package com.finalproject.example.EmailClientAI.entity;
 
+import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.SuperBuilder;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.*;
 
 @Entity
 @Table(name = "emails")
 @Getter
 @Setter
-@Builder
+@SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Email {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    String id;
+    UUID id;
 
-    @Column(name = "mailbox_id", nullable = false)
-    Long mailboxId;
-
-    @Column(name = "from_address", nullable = false)
-    String fromAddress;
-
-    @Column(name = "to_address", nullable = false)
-    String toAddress;
-
-    @Column(name = "cc_address")
-    String ccAddress;
-
-    @Column(nullable = false)
-    String subject;
-
-    @Column(length = 500)
-    String preview;
-
-    @Column(columnDefinition = "TEXT", nullable = false)
-    String body;
-
-    @Column(nullable = false)
-    LocalDateTime timestamp;
-
-    @Column(name = "is_starred")
-    @Builder.Default
-    Boolean isStarred = false;
-
-    @Column(name = "is_read")
-    @Builder.Default
-    Boolean isRead = false;
+    @Column(name = "gmail_email_id", nullable = false, unique = true)
+    String gmailEmailId;
 
     @Column(name = "user_id", nullable = false)
     String userId;
 
-    @PrePersist
-    protected void onCreate() {
-        if (timestamp == null) {
-            timestamp = LocalDateTime.now();
-        }
-    }
+    @Column(name = "thread_id")
+    String threadId;
+
+    @Column(length = 1000)
+    String snippet;
+
+    @Column(name = "subject", length = 2000)
+    String subject;
+
+    @Column(name = "sender_email")
+    String senderEmail;
+
+    @Column(name = "received_date")
+    Instant receivedDate;
+
+    @Column(name = "body_html", columnDefinition = "TEXT")
+    String bodyHtml;
+
+    @Column(name = "body_text", columnDefinition = "TEXT")
+    String bodyText;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "email_recipients", joinColumns = @JoinColumn(name = "email_id"))
+    @Column(name = "recipient_email")
+    Set<String> recipientEmails = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "email_labels", joinColumns = @JoinColumn(name = "email_id"))
+    @Column(name = "label")
+    Set<String> labels = new HashSet<>();
+
+    // Attachments
+    @OneToMany(mappedBy = "email", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    List<Attachment> attachments = new ArrayList<>();
 }

@@ -2,7 +2,6 @@ package com.finalproject.example.EmailClientAI.service.impl;
 
 import com.finalproject.example.EmailClientAI.dto.AuthenticationDTO;
 import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
-import com.finalproject.example.EmailClientAI.security.SecurityUtils;
 import com.finalproject.example.EmailClientAI.service.AuthenticationService;
 import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
 import com.finalproject.example.EmailClientAI.service.JWTService;
@@ -17,7 +16,6 @@ import com.finalproject.example.EmailClientAI.dto.UserDTO;
 import com.finalproject.example.EmailClientAI.entity.User;
 import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
-import com.finalproject.example.EmailClientAI.repository.InvalidatedTokenRepository;
 import com.finalproject.example.EmailClientAI.repository.UserRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +40,6 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationServiceIml implements AuthenticationService {
 
-    private final InvalidatedTokenRepository invalidatedTokenRepository;
     private final UserRepository userRepository;
     private final UserSessionRepository userSessionRepository;
     private final PasswordEncoder passwordEncoder;
@@ -77,62 +74,7 @@ public class AuthenticationServiceIml implements AuthenticationService {
     @Value("${environment}")
     String environment;
 
-    @Override
-    public IntrospectResponse introspect(IntrospectRequest request) {
-        boolean isValid = true;
 
-        try {
-            verifyToken(request.getToken(), false);
-        } catch (AppException e) {
-            isValid = false;
-        }
-
-        return IntrospectResponse.builder()
-                .valid(isValid)
-                .build();
-    }
-
-    @Override
-    @Transactional
-    public AuthenticationResponse register(RegisterRequest request) {
-        log.info("Register request received: {}", request);
-
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
-        }
-
-        User user = User.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .name(request.getName())
-                .build();
-
-        log.info("Saving user to database...");
-        user = userRepository.save(user);
-        log.info("User saved successfully with ID: {}", user.getId());
-
-        try {
-            log.info("Building authentication response...");
-            AuthenticationResponse response = buildAuthenticationResponse(user);
-            log.info("Authentication response built successfully");
-            return response;
-        } catch (Exception e) {
-            log.error("Error building authentication response: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    @Override
-    public AuthenticationResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_EMAIL_PASSWORD));
-
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new AppException(ErrorCode.INVALID_EMAIL_PASSWORD);
-        }
-
-        return buildAuthenticationResponse(user);
-    }
 
     @Override
     @Transactional
@@ -212,39 +154,5 @@ public class AuthenticationServiceIml implements AuthenticationService {
                 .user(userDTO)
                 .build();
     }
-
-    private SignedJWT verifyToken(String token, boolean isRefresh) {
-        JWSVerifier verifier;
-
-        try {
-            if (isRefresh) {
-                verifier = new MACVerifier(REFRESH_SIGNER_KEY);
-            } else {
-                verifier = new MACVerifier(ACCESS_SIGNER_KEY);
-            }
-
-            SignedJWT signedJWT = SignedJWT.parse(token);
-
-            Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
-
-            String id = signedJWT.getJWTClaimsSet().getJWTID();
-            boolean verified = signedJWT.verify(verifier);
-
-            if (!verified || expirationTime.before(new Date())) {
-                throw new AppException(ErrorCode.INVALID_TOKEN);
-            }
-
-            if (invalidatedTokenRepository.existsByAccessIdOrRefreshId(id)) {
-                throw new AppException(ErrorCode.INVALID_TOKEN);
-            }
-
-            return signedJWT;
-        } catch (ParseException | JOSEException e) {
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
-        }
-    }
-
-
-
 
 }

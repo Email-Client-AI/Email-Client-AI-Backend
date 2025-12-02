@@ -11,12 +11,6 @@ import org.springframework.http.ResponseCookie;
 
 public interface AuthenticationService {
 
-    IntrospectResponse introspect(IntrospectRequest request);
-
-    AuthenticationResponse register(RegisterRequest request);
-
-    AuthenticationResponse login(LoginRequest request);
-
     void logout(String refreshToken, String deviceId);
 
     AuthenticationDTO refresh(String refreshToken, String deviceId);

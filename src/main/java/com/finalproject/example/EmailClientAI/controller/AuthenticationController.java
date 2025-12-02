@@ -25,22 +25,6 @@ public class AuthenticationController {
     private final AuthenticationService authenticationService;
     private final GoogleOAuthService googleOAuthService;
 
-    @PostMapping("/register")
-    public ApiResponse<AuthenticationResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ApiResponse.<AuthenticationResponse>builder()
-                .data(authenticationService.register(request))
-                .message("User registered successfully")
-                .build();
-    }
-
-    @PostMapping("/login")
-    public ApiResponse<AuthenticationResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.<AuthenticationResponse>builder()
-                .data(authenticationService.login(request))
-                .message("Login successful")
-                .build();
-    }
-
     @PostMapping("/google")
     public ResponseEntity<AuthenticationDTO> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
         var authenticationDTO = googleOAuthService.exchangeCodeAndLogin(request);
@@ -71,10 +55,4 @@ public class AuthenticationController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/introspect")
-    public ApiResponse<IntrospectResponse> introspect(@RequestBody IntrospectRequest request) {
-        return ApiResponse.<IntrospectResponse>builder()
-                .data(authenticationService.introspect(request))
-                .build();
-    }
 }

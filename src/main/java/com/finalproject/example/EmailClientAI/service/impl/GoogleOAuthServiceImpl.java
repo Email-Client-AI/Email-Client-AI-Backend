@@ -13,6 +13,7 @@ import com.finalproject.example.EmailClientAI.exception.ErrorCode;
 import com.finalproject.example.EmailClientAI.mapper.UserMapper;
 import com.finalproject.example.EmailClientAI.repository.UserRepository;
 import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
+import com.finalproject.example.EmailClientAI.service.GmailService;
 import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
 import com.finalproject.example.EmailClientAI.service.JWTService;
 import com.finalproject.example.EmailClientAI.utils.Utils;
@@ -68,6 +69,7 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
     private final UserSessionRepository userSessionRepository;
     private final UserMapper userMapper;
     private final JWTService jwtService;
+    private final GmailService gmailService;
 
     @Override
     public AuthenticationDTO exchangeCodeAndLogin(GoogleLoginRequest request) {
@@ -102,6 +104,7 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
 
         // 4. Decode ID Token to get User Info
         var userInfo = extractUserInfo(googleIdToken);
+        var isNewUser = userRepository.findBySub(userInfo.getUserInfo().sub()).isEmpty();
         var user = processUserLogin(userInfo);
 
         String acId = UUID.randomUUID().toString();
@@ -109,7 +112,9 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
         String rawToken = Utils.generateRawToken();
         var newUserSession = generateUserSessionWithTokens(user, googleAccessToken, googleRefreshToken, rawToken, refreshTokenExpiresIn);
 
-        userSessionRepository.save(newUserSession);
+        if(isNewUser) {
+            userSessionRepository.save(newUserSession);
+        }
 
         var userDTO = userMapper.toDto(user);
         return AuthenticationDTO.builder()

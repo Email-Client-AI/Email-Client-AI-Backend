@@ -33,21 +33,4 @@ public class User extends BaseEntity {
 
     @Column(unique = true)
     String sub; // unique identifier for Google OAuth2 users
-
-//    @Column(name = "created_at", nullable = false, updatable = false)
-//    LocalDateTime createdAt;
-//
-//    @Column(name = "updated_at")
-//    LocalDateTime updatedAt;
-
-//    @PrePersist
-//    protected void onCreate() {
-//        createdAt = LocalDateTime.now();
-//        updatedAt = LocalDateTime.now();
-//    }
-//
-//    @PreUpdate
-//    protected void onUpdate() {
-//        updatedAt = LocalDateTime.now();
-//    }
 }

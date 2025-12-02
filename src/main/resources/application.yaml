@@ -23,7 +23,6 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-
 # Client Configuration (CORS)
 client:
   url: ${CLIENT_URL:http://localhost:5173}

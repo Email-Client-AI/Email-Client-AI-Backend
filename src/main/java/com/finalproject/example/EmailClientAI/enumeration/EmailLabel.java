@@ -5,7 +5,7 @@ public enum EmailLabel {
     UNREAD("UNREAD"),
     SENT("SENT"),
     TRASH("TRASH"),
-    DRAFT("DRAFT"),
+    DRAFTS("DRAFTS"),
     SPAM("SPAM"),
     STARRED("STARRED"),
     IMPORTANT("IMPORTANT");

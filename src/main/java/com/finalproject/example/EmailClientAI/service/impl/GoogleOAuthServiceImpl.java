@@ -149,6 +149,7 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
 
         Map<String, Object> body = response.getBody();
         if (body == null) {
+            log.error("Failed to refresh Google access token: response body is null");
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
 
@@ -203,9 +204,9 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
     }
 
     @Override
-    public UserSession generateUserSessionWithTokens(User user, String googleAccessToken, String googleRefreshToken, String appRefreshToken, Long refreshTokenDuration) {
+    public UserSession generateUserSessionWithTokens(User user, String googleAccessToken, String googleRefreshToken, String rawRefreshToken, Long refreshTokenDuration) {
 
-        String appHashedRefreshToken = Utils.hashToken(appRefreshToken, hashAlgorithm);
+        String appHashedRefreshToken = Utils.hashToken(rawRefreshToken, hashAlgorithm);
 
         String deviceId = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(refreshTokenDuration, ChronoUnit.SECONDS);

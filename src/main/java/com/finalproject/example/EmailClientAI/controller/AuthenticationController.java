@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("api/auth")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class AuthenticationController {
 
     private final AuthenticationService authenticationService;
@@ -42,6 +44,8 @@ public class AuthenticationController {
         var authenticationDTO = authenticationService.refresh(refreshToken, deviceId);
         var refreshCookie = authenticationService.createHttpOnlyCookie("refresh_token", authenticationDTO.getRefreshToken());
         var deviceCookie = authenticationService.createHttpOnlyCookie("device_id", authenticationDTO.getDeviceId());
+
+        log.info("Refreshed tokens for device ID: {}, the new device ID: {}", deviceId, authenticationDTO.getDeviceId());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                 .header(HttpHeaders.SET_COOKIE, deviceCookie.toString())

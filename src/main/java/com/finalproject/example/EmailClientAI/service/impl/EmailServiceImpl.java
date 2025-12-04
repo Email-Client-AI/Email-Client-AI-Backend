@@ -3,6 +3,7 @@ package com.finalproject.example.EmailClientAI.service.impl;
 import com.finalproject.example.EmailClientAI.dto.email.EmailDTO;
 import com.finalproject.example.EmailClientAI.dto.email.ListEmailDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
+import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
 import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
 import com.finalproject.example.EmailClientAI.mapper.EmailMapper;
@@ -79,6 +80,8 @@ public class EmailServiceImpl implements EmailService {
         var searchString = filters.remove("s");
         var from = Optional.ofNullable(filters.remove("from")).filter(StringUtils::isNotBlank).map(Instant::parse).orElse(null);
         var to = Optional.ofNullable(filters.remove("to")).filter(StringUtils::isNotBlank).map(Instant::parse).orElse(null);
+        var category = filters.remove("category");
+
 
         if (StringUtils.isNotBlank(searchString)) {
             query = query.and(applySearchFilter(searchString));
@@ -87,6 +90,12 @@ public class EmailServiceImpl implements EmailService {
         if (Objects.nonNull(from)) {
             query = query.and(applyFromFilter(from));
         }
+
+        if (Objects.nonNull(category)) {
+            query = query.and(applyCategoryFilter(category));
+        }
+
+
 
         if (Objects.nonNull(to)) {
             query = query.and(applyToFilter(to));
@@ -110,5 +119,16 @@ public class EmailServiceImpl implements EmailService {
 
     private Specification<Email> applyToFilter(Instant to) {
         return null;
+    }
+
+    private Specification<Email> applyCategoryFilter(String categoryString) {
+        var category = EmailLabel.fromId(categoryString);
+        if (category == null) {
+            throw new AppException(ErrorCode.INVALID_EMAIL_CATEGORY);
+        }
+        return (root, q, cb) -> {
+            var labelsJoin = root.joinSet("labels", JoinType.LEFT);
+            return cb.equal(labelsJoin, category.toString());
+        };
     }
 }

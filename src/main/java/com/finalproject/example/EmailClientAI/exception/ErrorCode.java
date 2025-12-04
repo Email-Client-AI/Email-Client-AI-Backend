@@ -34,7 +34,9 @@ public enum ErrorCode {
     INVALID_LOGOUT_REQUEST(400, "Invalid logout request", HttpStatus.BAD_REQUEST),
     INVALID_REFRESH_REQUEST(400, "Invalid refresh token request", HttpStatus.BAD_REQUEST),
     SESSION_USER_MISMATCH(400, "Session does not belong to the user", HttpStatus.BAD_REQUEST),
-    SESSION_EXPIRED(400, "Session has expired", HttpStatus.BAD_REQUEST);
+    SESSION_EXPIRED(400, "Session has expired", HttpStatus.BAD_REQUEST),
+
+    INVALID_EMAIL_CATEGORY(400, "Invalid email category", HttpStatus.BAD_REQUEST);
 
     int code;
     String message;

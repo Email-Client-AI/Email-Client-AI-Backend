@@ -42,12 +42,12 @@ public class SecurityConfig {
 
   @NonFinal
   String[] PUBLIC_POST_ENDPOINTS = {
-      "/auth/register",
-      "/auth/login",
-      "/auth/google",
-      "/auth/refresh",
-      "/auth/logout",
-      "/auth/introspect"
+      "/api/auth/register",
+      "/api/auth/login",
+      "/api/auth/google",
+      "/api/auth/refresh",
+      "/api/auth/logout",
+      "/api/auth/introspect"
   };
 
   @NonFinal

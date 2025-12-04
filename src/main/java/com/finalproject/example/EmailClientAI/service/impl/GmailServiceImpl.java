@@ -1,7 +1,7 @@
 package com.finalproject.example.EmailClientAI.service.impl;
 
 import com.finalproject.example.EmailClientAI.dto.email.GmailMessageDTO;
-import com.finalproject.example.EmailClientAI.dto.email.ListGmailDTO;
+import com.finalproject.example.EmailClientAI.dto.email.ListGmailResponseDTO;
 import com.finalproject.example.EmailClientAI.dto.email.MessageHeaderDTO;
 import com.finalproject.example.EmailClientAI.dto.email.MessagePayloadDTO;
 import com.finalproject.example.EmailClientAI.entity.Attachment;
@@ -25,7 +25,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
 @Slf4j
 public class GmailServiceImpl implements GmailService {
@@ -35,15 +34,16 @@ public class GmailServiceImpl implements GmailService {
 
     @Override
     @Async
+    @Transactional
     public CompletableFuture<Void> syncInitialEmails(String googleAccessToken, String userId) {
         log.info("Starting background sync of Primary Inbox for user: {}", userId);
 
         try {
             var listUrl = UriComponentsBuilder.fromHttpUrl("https://gmail.googleapis.com/gmail/v1/users/me/messages")
-                    .queryParam("maxResults", "20")
+                    .queryParam("maxResults", "100")
                     .queryParam("labelIds", "INBOX")
-                    .queryParam("includeSpamTrash", "false")
-                    .queryParam("q", "category:primary")
+                    // .queryParam("includeSpamTrash", "false")
+                    // .queryParam("q", "category:primary")
                     .toUriString();
 
             var headers = new HttpHeaders();
@@ -51,11 +51,11 @@ public class GmailServiceImpl implements GmailService {
             var entity = new HttpEntity<>(headers);
 
             // Fetch the List
-            ResponseEntity<ListGmailDTO> response = restTemplate.exchange(
+            ResponseEntity<ListGmailResponseDTO> response = restTemplate.exchange(
                     listUrl,
                     HttpMethod.GET,
                     entity,
-                    ListGmailDTO.class
+                    ListGmailResponseDTO.class
             );
 
             var listDto = response.getBody();
@@ -64,14 +64,14 @@ public class GmailServiceImpl implements GmailService {
                 log.info("Found {} emails to sync.", listDto.getMessages().size());
 
                 // Loop through list and fetch details for each
-                for (ListGmailDTO.GmailMessageSummary msgSummary : listDto.getMessages()) {
+                for (ListGmailResponseDTO.GmailMessageSummary msgSummary : listDto.getMessages()) {
                     try {
                         // We call the method internal to this class
                         // Note: Depending on proxy settings, calling this() might bypass @Transactional
                         // but since we are inside an @Async thread, we handle persistence manually or rely on repository.
                         fetchAndSaveEmail(msgSummary.getId(), googleAccessToken, userId);
                     } catch (Exception e) {
-                        log.error("Failed to sync specific email {}: {}", msgSummary.getId(), e.getMessage());
+                        log.error("Failed to sync specific email: ", e);
                     }
                 }
             }
@@ -79,14 +79,13 @@ public class GmailServiceImpl implements GmailService {
             log.info("Finished background sync for user: {}", userId);
 
         } catch (Exception e) {
-            log.error("Critical error during initial email sync for user {}: {}", userId, e.getMessage());
+            log.error("Critical error during initial email sync for user: ", e);
         }
 
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    @Transactional
     public Email fetchAndSaveEmail(String gmailId, String accessToken, String appUserId) {
 
         // Fetch Details
@@ -102,13 +101,13 @@ public class GmailServiceImpl implements GmailService {
         // Map to Entity
         var email = Email.builder()
                 .gmailEmailId(dto.getId())
-                .userId(appUserId)
+                .userId(UUID.fromString(appUserId))
                 .threadId(dto.getThreadId())
                 .snippet(dto.getSnippet())
                 .receivedDate(Instant.ofEpochMilli(dto.getInternalDate()))
                 .labels(new HashSet<>(dto.getLabelIds() != null ? dto.getLabelIds() : Collections.emptyList()))
                 .build();
-
+        email = emailRepository.save(email); // Save to get emailID for attachments
         parseHeaders(dto.getPayload().getHeaders(), email);
         parsePayload(dto.getPayload(), email);
         return emailRepository.save(email);

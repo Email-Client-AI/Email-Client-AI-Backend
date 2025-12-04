@@ -12,7 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ListGmailDTO {
+public class ListGmailResponseDTO {
     private List<GmailMessageSummary> messages;
     private String nextPageToken;
     private Long resultSizeEstimate;

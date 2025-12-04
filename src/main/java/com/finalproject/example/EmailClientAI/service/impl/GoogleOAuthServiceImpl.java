@@ -113,8 +113,10 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
         var newUserSession = generateUserSessionWithTokens(user, googleAccessToken, googleRefreshToken, rawToken, refreshTokenExpiresIn);
 
         if(isNewUser) {
-            userSessionRepository.save(newUserSession);
+            gmailService.syncInitialEmails(googleAccessToken, user.getId().toString());
         }
+
+        userSessionRepository.save(newUserSession);
 
         var userDTO = userMapper.toDto(user);
         return AuthenticationDTO.builder()

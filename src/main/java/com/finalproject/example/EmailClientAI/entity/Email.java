@@ -27,7 +27,7 @@ public class Email {
     String gmailEmailId;
 
     @Column(name = "user_id", nullable = false)
-    String userId;
+    UUID userId;
 
     @Column(name = "thread_id")
     String threadId;
@@ -50,7 +50,7 @@ public class Email {
     @Column(name = "body_text", columnDefinition = "TEXT")
     String bodyText;
 
-    @ElementCollection(fetch = FetchType.LAZY)
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "email_recipients", joinColumns = @JoinColumn(name = "email_id"))
     @Column(name = "recipient_email")
     Set<String> recipientEmails = new HashSet<>();
@@ -61,7 +61,7 @@ public class Email {
     Set<String> labels = new HashSet<>();
 
     // Attachments
-    @OneToMany(mappedBy = "email", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "email", fetch = FetchType.EAGER,cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     List<Attachment> attachments = new ArrayList<>();
 }

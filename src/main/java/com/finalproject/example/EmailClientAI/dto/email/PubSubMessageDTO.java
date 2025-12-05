@@ -4,17 +4,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.util.List;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ListGmailResponseDTO {
-    private List<GmailMessageSummaryDTO> messages;
-    private String nextPageToken;
-    private Long resultSizeEstimate;
-
+public class PubSubMessageDTO {
+    private PubSubMessageDataDTO message;
 }

@@ -6,6 +6,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -33,4 +34,8 @@ public class User extends BaseEntity {
 
     @Column(unique = true)
     String sub; // unique identifier for Google OAuth2 users
+
+    @Column(name = "last_history_id", columnDefinition = "DECIMAL(20,0)")
+    private BigInteger lastHistoryId;
+
 }

@@ -21,7 +21,7 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
 # Client Configuration (CORS)
 client:
@@ -43,6 +43,7 @@ google:
   client-id: ${GOOGLE_CLIENT_ID:814456609088-g8l48sm9c6s1fb6c6mf5kdlesdikmvg9.apps.googleusercontent.com}
   client-secret: ${GOOGLE_CLIENT_SECRET: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}
   redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:5173}
+  topic-name: ${GOOGLE_TOPIC_NAME:projects/advancedwebdev-479002/topics/TVV_Mail}
 
 # Logging
 logging:

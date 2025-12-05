@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface UserSessionRepository extends JpaRepository<UserSession, UUID> {
     Optional<UserSession> findByAppRefreshTokenAndDeviceId(String appRefreshToken, String deviceId);
 
+    Optional<UserSession> findTopByUserIdOrderByExpiresAtDesc(UUID userId);
 }

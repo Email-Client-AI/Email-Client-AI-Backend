@@ -2,6 +2,7 @@ package com.finalproject.example.EmailClientAI.service.impl;
 
 import com.finalproject.example.EmailClientAI.dto.email.EmailDTO;
 import com.finalproject.example.EmailClientAI.dto.email.ListEmailDTO;
+import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
 import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
 import com.finalproject.example.EmailClientAI.exception.AppException;
@@ -73,7 +74,6 @@ public class EmailServiceImpl implements EmailService {
         );
         return emailMapper.toDto(email);
     }
-
 
 
     private Specification<Email> applyFilters(Map<String, String> filters, Specification<Email> query) {

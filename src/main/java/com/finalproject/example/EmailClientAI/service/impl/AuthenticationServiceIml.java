@@ -105,6 +105,7 @@ public class AuthenticationServiceIml implements AuthenticationService {
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_REQUEST));
 
         if (userSession.getExpiresAt().isBefore(Instant.now())) {
+            userSessionRepository.delete(userSession);
             throw new AppException(ErrorCode.SESSION_EXPIRED);
         }
 

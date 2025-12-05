@@ -1,5 +1,6 @@
 package com.finalproject.example.EmailClientAI.service;
 
+import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
 
 import java.util.concurrent.CompletableFuture;
@@ -16,4 +17,9 @@ public interface GmailService {
      * Fetches details for a single email and saves it to the DB.
      */
     Email fetchAndSaveEmail(String gmailId, String accessToken, String appUserId);
+
+    void processGmailWebhook(PubSubMessageDTO pubSubMessageDTO);
+
+    void sendUserWatchRequest(String accessToken, String userId);
+
 }

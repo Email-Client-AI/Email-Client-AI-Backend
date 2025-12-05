@@ -1,5 +1,6 @@
 package com.finalproject.example.EmailClientAI.dto.email;
 
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -12,9 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ListGmailResponseDTO {
+public class GmailHistoryResponseDTO {
+    private String id;
     private List<GmailMessageSummaryDTO> messages;
-    private String nextPageToken;
-    private Long resultSizeEstimate;
-
 }

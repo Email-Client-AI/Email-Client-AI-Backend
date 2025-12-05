@@ -13,4 +13,6 @@ import java.util.UUID;
 @Repository
 public interface EmailRepository extends JpaRepository<Email, UUID>, JpaSpecificationExecutor<Email> {
     Optional<Email> findByIdAndUserId(UUID id, UUID userId);
+
+    boolean existsByGmailEmailIdAndUserId(String gmailMessageId, UUID userId);
 }

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finalproject.example.EmailClientAI.dto.email.*;
 import com.finalproject.example.EmailClientAI.entity.Attachment;
 import com.finalproject.example.EmailClientAI.entity.Email;
+import com.finalproject.example.EmailClientAI.entity.User;
 import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
 import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
@@ -195,96 +196,112 @@ public class GmailServiceImpl implements GmailService {
     @Transactional
     public void processGmailWebhook(PubSubMessageDTO pubSubMessageDTO) {
         try {
-            // 1. Decode the Base64 data
+            // 1. Decode payload
             String encodedData = pubSubMessageDTO.getMessage().getData();
             byte[] decodedBytes = Base64.getDecoder().decode(encodedData);
             String decodedString = new String(decodedBytes);
 
             log.info("Received Gmail Webhook Payload: {}", decodedString);
 
-            // 2. Parse JSON to identify User and HistoryID
+            // 2. Parse JSON
             JsonNode rootNode = objectMapper.readTree(decodedString);
             var emailAddress = rootNode.path("emailAddress").asText();
-            var newHistoryId = new BigInteger(rootNode.path("historyId").asText());
+            var incomingHistoryId = new BigInteger(rootNode.path("historyId").asText());
 
             // 3. Find User
             var user = userRepository.findByEmail(emailAddress)
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-            // 4. PREPARE ACCESS TOKEN (Critical for Background Tasks)
+            // 4. Get Access Token
             var userSession = userSessionRepository.findTopByUserIdOrderByExpiresAtDesc(user.getId())
                     .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
 
-            // 5. Check Sync Logic
-            BigInteger startHistoryId = user.getLastHistoryId();
+            // 5. Optimization Check
+            BigInteger currentDbHistoryId = user.getLastHistoryId();
 
-            // First time sync: just save the new ID
-            if (startHistoryId == null) {
+            if (currentDbHistoryId == null) {
+                // First time ever: just set the ID and return (or trigger full sync)
                 log.info("First time sync for {}. Saving history ID.", emailAddress);
-                user.setLastHistoryId(newHistoryId);
+                user.setLastHistoryId(incomingHistoryId);
                 userRepository.save(user);
                 return;
             }
 
-            if(newHistoryId.compareTo(startHistoryId) <= 0) {
-                log.info("No new changes for {}. Current History ID: {}, Last Synced ID: {}", emailAddress, newHistoryId, startHistoryId);
+            // If DB is already ahead of or equal to the notification, ignore it
+            if (incomingHistoryId.compareTo(currentDbHistoryId) <= 0) {
+                log.info("Stale notification. DB: {}, Incoming: {}. Skipping.", currentDbHistoryId, incomingHistoryId);
                 return;
             }
 
-            // 6. Call Gmail History API manually
-            String historyUrl = "https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=" + startHistoryId;
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(userSession.getGoogleAccessToken());
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-            try {
-                ResponseEntity<ListGmailHistoryResponseDTO> response = restTemplate.exchange(
-                        historyUrl,
-                        HttpMethod.GET,
-                        entity,
-                        ListGmailHistoryResponseDTO.class
-                );
-
-                var historyBody = response.getBody();
-
-                if (historyBody != null && historyBody.getHistory() != null) {
-                    for (GmailHistoryResponseDTO historyItem : historyBody.getHistory()) {
-                        // Handle Messages Added
-                        if (historyItem.getMessages() != null) {
-                            for (GmailMessageSummaryDTO msgInfo : historyItem.getMessages()) {
-                                String msgId = msgInfo.getId();
-
-                                // Avoid Duplicates
-                                if (!emailRepository.existsByGmailEmailIdAndUserId(msgId, user.getId())) {
-                                    // REUSE your existing manual fetch method!
-                                    fetchAndSaveEmail(msgId, userSession.getGoogleAccessToken(), user.getId().toString());
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 7. Update User Sync Point
-                user.setLastHistoryId(historyBody.getHistoryId());
-                userRepository.save(user);
-
-            } catch (HttpClientErrorException e) {
-                if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                    // History ID is too old (user hasn't synced in 30 days).
-                    // Logic: Perform a full list sync or reset historyId to newHistoryId.
-                    log.warn("History ID expired. Resetting to new ID.");
-                    user.setLastHistoryId(newHistoryId);
-                    userRepository.save(user);
-                } else {
-                    throw e;
-                }
-            }
+            // 6. DELEGATE TO THE NEW FUNCTION
+            syncEmailsFromHistoryId(user, userSession.getGoogleAccessToken(), currentDbHistoryId, incomingHistoryId);
 
         } catch (Exception e) {
             log.error("Error processing Gmail webhook", e);
-            // Catch all exceptions to ensure we return 200 OK to Pub/Sub
-            // otherwise Google will retry sending this message for 7 days.
+            // Swallowed to ensure 200 OK return to Pub/Sub
+        }
+    }
+
+    @Override
+    @Transactional
+    public void syncEmailsFromHistoryId(User user, String accessToken, BigInteger startHistoryId, BigInteger fallbackHistoryId) {
+        String historyUrl = "https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=" + startHistoryId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            // 1. Execute Manual HTTP Request
+            ResponseEntity<ListGmailHistoryResponseDTO> response = restTemplate.exchange(
+                    historyUrl,
+                    HttpMethod.GET,
+                    entity,
+                    ListGmailHistoryResponseDTO.class
+            );
+
+            var historyBody = response.getBody();
+
+            // 2. Process the History List
+            if (historyBody != null && historyBody.getHistory() != null) {
+                for (GmailHistoryResponseDTO historyItem : historyBody.getHistory()) {
+                    // Handle Messages Added
+                    // Note: Ensure your DTO structure matches Gmail API ("messagesAdded" array)
+                    if (historyItem.getMessages() != null) {
+                        for (GmailMessageSummaryDTO msgInfo : historyItem.getMessages()) {
+                            String msgId = msgInfo.getId();
+
+                            // Avoid Duplicates
+                            if (!emailRepository.existsByGmailEmailIdAndUserId(msgId, user.getId())) {
+                                fetchAndSaveEmail(msgId, accessToken, user.getId().toString());
+                            }
+                        }
+                    }
+                    // TODO: You can add logic for 'labelsAdded' or 'messagesDeleted' here
+                }
+            }
+
+            // 3. Update User Sync Point (Crucial: Use the ID from the API response)
+            if (historyBody != null && historyBody.getHistoryId() != null) {
+                user.setLastHistoryId(historyBody.getHistoryId());
+                userRepository.save(user);
+                log.info("Sync complete. Updated History ID to: {}", historyBody.getHistoryId());
+            }
+
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                // 4. Handle Expired History (User hasn't synced in ~30 days)
+                log.warn("History ID {} not found (expired). Resetting to fallback ID: {}", startHistoryId, fallbackHistoryId);
+
+                // Option A: Reset to the ID we just received from Pub/Sub (Fast, but misses data in the gap)
+                user.setLastHistoryId(fallbackHistoryId);
+                userRepository.save(user);
+
+                // Option B (Better): Trigger a full syncInitialEmails() here
+                // syncInitialEmails(accessToken, user.getId().toString());
+            } else {
+                throw e;
+            }
         }
     }
 

@@ -76,18 +76,18 @@ public class EmailServiceImpl implements EmailService {
         return emailMapper.toDto(email);
     }
 
-@Override
-        public List<EmailDTO> getEmailsByThreadId(String threadId) {
-            var currLoggedInUser = SecurityUtils.getCurrentLoggedInUser().orElseThrow(
-                    () -> new AppException(ErrorCode.USER_NOT_FOUND)
-            );
-            var emails = emailRepository.findByThreadIdAndUserId(threadId, currLoggedInUser.getId());
-            return emails.stream()
-                    // Exclude draft emails because it seems that google auto create a draft when we reply emails
-                    .filter(email -> !email.getLabels().contains(EmailLabel.DRAFT.name()))
-                    .map(emailMapper::toDto)
-                    .toList();
-        }
+    @Override
+    public List<EmailDTO> getEmailsByThreadId(String threadId) {
+        var currLoggedInUser = SecurityUtils.getCurrentLoggedInUser().orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_FOUND)
+        );
+        var emails = emailRepository.findByThreadIdAndUserId(threadId, currLoggedInUser.getId());
+        return emails.stream()
+                // Exclude draft emails because it seems that google auto create a draft when we reply emails
+                .filter(email -> !email.getLabels().contains(EmailLabel.DRAFT.name()))
+                .map(emailMapper::toDto)
+                .toList();
+    }
 
 
     private Specification<Email> applyFilters(Map<String, String> filters, Specification<Email> query) {

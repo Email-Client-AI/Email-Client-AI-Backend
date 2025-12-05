@@ -2,7 +2,9 @@ package com.finalproject.example.EmailClientAI.service;
 
 import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
+import com.finalproject.example.EmailClientAI.entity.User;
 
+import java.math.BigInteger;
 import java.util.concurrent.CompletableFuture;
 
 public interface GmailService {
@@ -21,5 +23,7 @@ public interface GmailService {
     void processGmailWebhook(PubSubMessageDTO pubSubMessageDTO);
 
     void sendUserWatchRequest(String accessToken, String userId);
+
+    void syncEmailsFromHistoryId(User user, String accessToken, BigInteger startHistoryId, BigInteger fallbackHistoryId);
 
 }

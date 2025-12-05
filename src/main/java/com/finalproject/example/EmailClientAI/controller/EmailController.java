@@ -13,10 +13,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/emails")
@@ -27,8 +24,6 @@ public class EmailController {
 
     @GetMapping("/details/{id}")
     public ResponseEntity<EmailDTO> getEmail(@PathVariable UUID id) {
-
-
         var result = emailService.getDetails(id);
         return ResponseEntity.ok(result);
     }
@@ -51,6 +46,20 @@ public class EmailController {
                 : pageable;
 
         var result = emailService.listEmails(filters, forced);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<List<EmailDTO>> getAll(@RequestParam Map<String, String> filters) {
+
+        var result = emailService.listEmails(filters, null);
+        var listEmails = result.getEmails();
+        return ResponseEntity.ok(listEmails);
+    }
+
+    @GetMapping("/thread/{threadId}")
+    public ResponseEntity<List<EmailDTO>> getEmailsByThreadId(@PathVariable String threadId) {
+        var result = emailService.getEmailsByThreadId(threadId);
         return ResponseEntity.ok(result);
     }
 

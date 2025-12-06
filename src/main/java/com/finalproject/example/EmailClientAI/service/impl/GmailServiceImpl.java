@@ -13,10 +13,14 @@ import com.finalproject.example.EmailClientAI.repository.EmailRepository;
 import com.finalproject.example.EmailClientAI.repository.UserRepository;
 import com.finalproject.example.EmailClientAI.service.GmailService;
 import com.finalproject.example.EmailClientAI.service.UserService;
+import jakarta.activation.DataHandler;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.util.ByteArrayDataSource;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
@@ -431,9 +435,9 @@ public class GmailServiceImpl implements GmailService {
 
     /**
      * Helper to construct the MIME message using JavaMail.
-     * Handles Address parsing, Subject encoding, HTML body, and Reply Headers.
+     * Handles Address parsing, Subject encoding, HTML body, Attachments (Forward), and Reply Headers.
      */
-    private MimeMessage createMimeMessage(GmailSendRequestDTO request, String accessToken) throws MessagingException, MessagingException {
+    private MimeMessage createMimeMessage(GmailSendRequestDTO request, String accessToken) throws MessagingException {
         Session session = Session.getDefaultInstance(new Properties(), null);
         MimeMessage email = new MimeMessage(session);
 
@@ -448,15 +452,52 @@ public class GmailServiceImpl implements GmailService {
             for (String bcc : request.getBcc()) email.addRecipient(jakarta.mail.Message.RecipientType.BCC, new InternetAddress(bcc));
         }
 
-        // 2. Set Content
+        // 2. Set Subject
         email.setSubject(request.getSubject(), "UTF-8");
-        email.setContent(request.getBodyHtml(), "text/html; charset=utf-8");
 
-        // 3. HANDLE REPLY HEADERS (Crucial for Threading)
-        if (request.getReplyToEmailId() != null) {
+        // 3. PREPARE CONTENT (Multipart is needed for Body + Attachments)
+        MimeMultipart multipart = new MimeMultipart();
+
+        // 3a. Add the HTML Body
+        MimeBodyPart textPart = new MimeBodyPart();
+        textPart.setContent(request.getBodyHtml(), "text/html; charset=utf-8");
+        multipart.addBodyPart(textPart);
+
+        // 4. HANDLE FORWARDING (Re-attach files)
+        // Check if this is a Forward request (assuming your DTO has this field)
+        if (request.getForwardEmailId() != null) {
+            var originalEmail = emailRepository.findById(UUID.fromString(request.getForwardEmailId()))
+                    .orElseThrow(() -> new AppException(ErrorCode.EMAIL_NOT_FOUND));
+
+            if (originalEmail.getAttachments() != null) {
+                for (Attachment dbAttachment : originalEmail.getAttachments()) {
+                    // Fetch the actual file bytes from Google
+                    byte[] fileBytes = fetchAttachmentBytes(originalEmail.getGmailEmailId(), dbAttachment.getGmailAttachmentId(), accessToken);
+
+                    if (fileBytes.length > 0) {
+                        // Create attachment part
+                        MimeBodyPart attachmentPart = new MimeBodyPart();
+                        ByteArrayDataSource dataSource = new ByteArrayDataSource(fileBytes, dbAttachment.getMimeType());
+
+                        attachmentPart.setDataHandler(new DataHandler(dataSource));
+                        attachmentPart.setFileName(dbAttachment.getFilename());
+
+                        multipart.addBodyPart(attachmentPart);
+                    }
+                }
+            }
+        }
+
+        // 5. Set the multipart content to the email
+        email.setContent(multipart);
+
+        // 6. HANDLE REPLY HEADERS (Crucial for Threading)
+        // Only set threading headers if it is a Reply AND NOT a Forward
+        if (request.getReplyToEmailId() != null && request.getForwardEmailId() == null) {
             var emailEntity = emailRepository.findById(UUID.fromString(request.getReplyToEmailId()))
                     .orElseThrow(() -> new AppException(ErrorCode.EMAIL_NOT_FOUND));
-            // We need to fetch the 'Message-ID' and 'References' from the original email via API
+
+            // Fetch threading headers from Gmail API
             Map<String, String> originalHeaders = fetchThreadingHeaders(emailEntity.getGmailEmailId(), accessToken);
 
             String originalMessageId = originalHeaders.get("Message-Id");
@@ -474,6 +515,8 @@ public class GmailServiceImpl implements GmailService {
 
         return email;
     }
+
+
 
     /**
      * Helper to fetch specific headers (Message-Id, References) from Gmail API.
@@ -516,8 +559,26 @@ public class GmailServiceImpl implements GmailService {
         return result;
     }
 
-    // Simple helper to just get the threadId if needed
-    private String fetchThreadId(String gmailMessageId, String accessToken) {
-        return fetchThreadingHeaders(gmailMessageId, accessToken).get("threadId");
+    /**
+     * Downloads attachment binary data from Gmail API.
+     */
+    private byte[] fetchAttachmentBytes(String messageId, String attachmentId, String accessToken) {
+        String url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/" + messageId + "/attachments/" + attachmentId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            if (response.getBody() != null && response.getBody().get("data") != null) {
+                String base64Data = (String) response.getBody().get("data");
+                // Gmail API uses URL-Safe Base64
+                return Base64.getUrlDecoder().decode(base64Data);
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch attachment {} for message {}", attachmentId, messageId, e);
+        }
+        return new byte[0];
     }
 }

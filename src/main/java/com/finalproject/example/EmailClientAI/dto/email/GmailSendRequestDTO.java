@@ -22,4 +22,6 @@ public class GmailSendRequestDTO {
 
     // Optional: Only used when replying
     private String replyToEmailId;
+
+    private String forwardEmailId;
 }

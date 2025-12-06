@@ -25,7 +25,7 @@ public class Attachment {
     private UUID emailId;
 
     @Column(name = "filename", length = 2000)
-    private String filename;
+    private String fileName;
 
     @Column(name = "mime_type")
     private String mimeType;

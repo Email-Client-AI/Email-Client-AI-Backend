@@ -12,7 +12,7 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AttachmentDTO {
     UUID id;
-    String filename;
+    String fileName;
     String mimeType;
     Long size;
     String gmailAttachmentId;

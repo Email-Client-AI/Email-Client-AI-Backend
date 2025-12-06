@@ -1,11 +1,13 @@
 package com.finalproject.example.EmailClientAI.service;
 
+import com.finalproject.example.EmailClientAI.dto.email.AttachmentDownloadDTO;
 import com.finalproject.example.EmailClientAI.dto.email.GmailSendRequestDTO;
 import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
 import com.finalproject.example.EmailClientAI.entity.User;
 
 import java.math.BigInteger;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public interface GmailService {
@@ -28,4 +30,6 @@ public interface GmailService {
     void syncEmailsFromHistoryId(User user, String accessToken, BigInteger startHistoryId, BigInteger fallbackHistoryId);
 
     void sendEmail(String googleAccessToken, GmailSendRequestDTO request);
+
+    AttachmentDownloadDTO downloadAttachment(UUID emailId, UUID attachmentId, String accessToken);
 }

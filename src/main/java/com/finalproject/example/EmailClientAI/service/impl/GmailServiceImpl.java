@@ -361,6 +361,50 @@ public class GmailServiceImpl implements GmailService {
         }
     }
 
+    @Override
+    public AttachmentDownloadDTO downloadAttachment(UUID emailId ,UUID attachmentId, String accessToken) {
+        Email email = emailRepository.findById(emailId)
+                .orElseThrow(() -> new AppException(ErrorCode.EMAIL_NOT_FOUND));
+
+        // Find the specific attachment in the email's list
+        Attachment attachmentMeta = email.getAttachments().stream()
+                .filter(a -> a.getId().equals(attachmentId))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.ATTACHMENT_NOT_FOUND));
+
+        // 2. Call Gmail API to fetch the Data
+        String url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/"
+                + email.getGmailEmailId()
+                + "/attachments/" + attachmentMeta.getGmailAttachmentId();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            Map<String, Object> body = response.getBody();
+
+            if (body != null && body.get("data") != null) {
+                String base64Data = (String) body.get("data");
+
+                // 3. Decode URL-Safe Base64
+                byte[] fileBytes = Base64.getUrlDecoder().decode(base64Data);
+
+                return AttachmentDownloadDTO.builder()
+                        .filename(attachmentMeta.getFileName())
+                        .mimeType(attachmentMeta.getMimeType())
+                        .data(fileBytes)
+                        .build();
+            } else {
+                throw new AppException(ErrorCode.GMAIL_API_ERROR);
+            }
+        } catch (Exception e) {
+            log.error("Failed to download attachment", e);
+            throw new AppException(ErrorCode.GMAIL_API_ERROR);
+        }
+    }
+
     private void parseHeaders(List<MessageHeaderDTO> headers, Email email) {
         if (headers == null) return;
         Set<String> recipients = new HashSet<>();
@@ -386,7 +430,7 @@ public class GmailServiceImpl implements GmailService {
             Attachment attachment = Attachment.builder()
                     .emailId(email.getId())
                     .email(email)
-                    .filename(payload.getFilename())
+                    .fileName(payload.getFilename())
                     .mimeType(mimeType)
                     .size(payload.getBody().getSize() != null ? payload.getBody().getSize().longValue() : 0L)
                     .gmailAttachmentId(payload.getBody().getAttachmentId())
@@ -480,7 +524,7 @@ public class GmailServiceImpl implements GmailService {
                         ByteArrayDataSource dataSource = new ByteArrayDataSource(fileBytes, dbAttachment.getMimeType());
 
                         attachmentPart.setDataHandler(new DataHandler(dataSource));
-                        attachmentPart.setFileName(dbAttachment.getFilename());
+                        attachmentPart.setFileName(dbAttachment.getFileName());
 
                         multipart.addBodyPart(attachmentPart);
                     }

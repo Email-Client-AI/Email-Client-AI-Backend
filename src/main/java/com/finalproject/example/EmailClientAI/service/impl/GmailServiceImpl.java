@@ -11,11 +11,12 @@ import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
 import com.finalproject.example.EmailClientAI.repository.EmailRepository;
 import com.finalproject.example.EmailClientAI.repository.UserRepository;
-import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
 import com.finalproject.example.EmailClientAI.service.GmailService;
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
+import com.finalproject.example.EmailClientAI.service.UserService;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.*;
@@ -44,7 +46,7 @@ public class GmailServiceImpl implements GmailService {
 
     private final EmailRepository emailRepository;
     private final UserRepository userRepository;
-    private final UserSessionRepository userSessionRepository;
+    private final UserService userService;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper;
 
@@ -213,8 +215,7 @@ public class GmailServiceImpl implements GmailService {
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
             // 4. Get Access Token
-            var userSession = userSessionRepository.findTopByUserIdOrderByExpiresAtDesc(user.getId())
-                    .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
+            var userSession = userService.findActiveSession(user.getId());
 
             // 5. Optimization Check
             BigInteger currentDbHistoryId = user.getLastHistoryId();
@@ -305,6 +306,57 @@ public class GmailServiceImpl implements GmailService {
         }
     }
 
+    @Override
+    public void sendEmail(String googleAccessToken, GmailSendRequestDTO request) {
+        try {
+            // 1. Create the MIME Message (RFC 2822)
+            var mimeMessage = createMimeMessage(request, googleAccessToken);
+
+            // 2. Convert MIME to ByteArray
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            mimeMessage.writeTo(buffer);
+            byte[] rawBytes = buffer.toByteArray();
+
+            // 3. Encode to URL-Safe Base64 (Required by Gmail API)
+            String encodedEmail = Base64.getUrlEncoder().encodeToString(rawBytes);
+
+            // 4. Prepare JSON Payload
+            Map<String, String> payload = new HashMap<>();
+            payload.put("raw", encodedEmail);
+
+            // Optimization: If replying, strictly associate with the thread
+            if (request.getReplyToEmailId() != null) {
+                var email = emailRepository.findById(UUID.fromString(request.getReplyToEmailId()))
+                        .orElseThrow(() -> new AppException(ErrorCode.EMAIL_NOT_FOUND));
+                String threadId = email.getThreadId();
+                if (threadId != null) {
+                    payload.put("threadId", threadId);
+                }
+            }
+
+            // 5. Execute HTTP POST
+            String url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(googleAccessToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(payload, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("Email sent successfully!");
+            } else {
+                log.error("Failed to send email:", response);
+                throw new AppException(ErrorCode.SEND_EMAIL_FAILURE);
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to send email", e);
+            throw new AppException(ErrorCode.SEND_EMAIL_FAILURE);
+        }
+    }
+
     private void parseHeaders(List<MessageHeaderDTO> headers, Email email) {
         if (headers == null) return;
         Set<String> recipients = new HashSet<>();
@@ -375,5 +427,97 @@ public class GmailServiceImpl implements GmailService {
     private List<String> extractEmails(String headerValue) {
         if (headerValue == null || headerValue.isEmpty()) return Collections.emptyList();
         return Arrays.stream(headerValue.split(",")).map(String::trim).map(this::cleanEmailAddress).toList();
+    }
+
+    /**
+     * Helper to construct the MIME message using JavaMail.
+     * Handles Address parsing, Subject encoding, HTML body, and Reply Headers.
+     */
+    private MimeMessage createMimeMessage(GmailSendRequestDTO request, String accessToken) throws MessagingException, MessagingException {
+        Session session = Session.getDefaultInstance(new Properties(), null);
+        MimeMessage email = new MimeMessage(session);
+
+        // 1. Set Recipients
+        if (request.getTo() != null) {
+            for (String to : request.getTo()) email.addRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress(to));
+        }
+        if (request.getCc() != null) {
+            for (String cc : request.getCc()) email.addRecipient(jakarta.mail.Message.RecipientType.CC, new InternetAddress(cc));
+        }
+        if (request.getBcc() != null) {
+            for (String bcc : request.getBcc()) email.addRecipient(jakarta.mail.Message.RecipientType.BCC, new InternetAddress(bcc));
+        }
+
+        // 2. Set Content
+        email.setSubject(request.getSubject(), "UTF-8");
+        email.setContent(request.getBodyHtml(), "text/html; charset=utf-8");
+
+        // 3. HANDLE REPLY HEADERS (Crucial for Threading)
+        if (request.getReplyToEmailId() != null) {
+            var emailEntity = emailRepository.findById(UUID.fromString(request.getReplyToEmailId()))
+                    .orElseThrow(() -> new AppException(ErrorCode.EMAIL_NOT_FOUND));
+            // We need to fetch the 'Message-ID' and 'References' from the original email via API
+            Map<String, String> originalHeaders = fetchThreadingHeaders(emailEntity.getGmailEmailId(), accessToken);
+
+            String originalMessageId = originalHeaders.get("Message-Id");
+            String originalReferences = originalHeaders.get("References");
+
+            if (originalMessageId != null) {
+                // The 'In-Reply-To' header tells email clients which specific message this is replying to
+                email.setHeader("In-Reply-To", originalMessageId);
+
+                // The 'References' header is a chain of all previous IDs. We append the new one.
+                String newReferences = (originalReferences != null ? originalReferences + " " : "") + originalMessageId;
+                email.setHeader("References", newReferences);
+            }
+        }
+
+        return email;
+    }
+
+    /**
+     * Helper to fetch specific headers (Message-Id, References) from Gmail API.
+     * We use 'format=metadata' to be lightweight (don't download body).
+     */
+    private Map<String, String> fetchThreadingHeaders(String gmailMessageId, String accessToken) {
+        String url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/" + gmailMessageId + "?format=metadata";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        Map<String, String> result = new HashMap<>();
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+
+            // Extract ThreadId while we are here
+            if (root.has("threadId")) {
+                result.put("threadId", root.get("threadId").asText());
+            }
+
+            // Extract Headers
+            JsonNode headersNode = root.path("payload").path("headers");
+            if (headersNode.isArray()) {
+                for (JsonNode header : headersNode) {
+                    String name = header.path("name").asText();
+                    if ("Message-Id".equalsIgnoreCase(name)) {
+                        result.put("Message-Id", header.path("value").asText());
+                    } else if ("References".equalsIgnoreCase(name)) {
+                        result.put("References", header.path("value").asText());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Could not fetch threading headers for message: {}", gmailMessageId, e);
+            throw new AppException(ErrorCode.SEND_EMAIL_FAILURE);
+        }
+        return result;
+    }
+
+    // Simple helper to just get the threadId if needed
+    private String fetchThreadId(String gmailMessageId, String accessToken) {
+        return fetchThreadingHeaders(gmailMessageId, accessToken).get("threadId");
     }
 }

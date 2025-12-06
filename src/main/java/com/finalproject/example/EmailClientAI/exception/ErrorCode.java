@@ -36,8 +36,9 @@ public enum ErrorCode {
     SESSION_USER_MISMATCH(400, "Session does not belong to the user", HttpStatus.BAD_REQUEST),
     SESSION_EXPIRED(400, "Session has expired", HttpStatus.BAD_REQUEST),
     SESSION_NOT_FOUND(404, "Session not found", HttpStatus.NOT_FOUND),
+    GMAIL_API_ERROR(502, "Error communicating with Gmail API", HttpStatus.BAD_GATEWAY),
+    SEND_EMAIL_FAILURE(500, "Failed to send email", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_EMAIL_CATEGORY(400, "Invalid email category", HttpStatus.BAD_REQUEST);
-
     int code;
     String message;
     HttpStatus status;

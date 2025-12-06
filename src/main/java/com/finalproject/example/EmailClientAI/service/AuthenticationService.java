@@ -7,7 +7,12 @@ import com.finalproject.example.EmailClientAI.dto.request.RefreshTokenRequest;
 import com.finalproject.example.EmailClientAI.dto.request.RegisterRequest;
 import com.finalproject.example.EmailClientAI.dto.response.AuthenticationResponse;
 import com.finalproject.example.EmailClientAI.dto.response.IntrospectResponse;
+import com.finalproject.example.EmailClientAI.entity.User;
+import com.finalproject.example.EmailClientAI.entity.UserSession;
 import org.springframework.http.ResponseCookie;
+
+import java.util.Optional;
+import java.util.UUID;
 
 public interface AuthenticationService {
 

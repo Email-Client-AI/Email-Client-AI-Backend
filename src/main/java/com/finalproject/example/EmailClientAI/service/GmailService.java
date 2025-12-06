@@ -1,5 +1,6 @@
 package com.finalproject.example.EmailClientAI.service;
 
+import com.finalproject.example.EmailClientAI.dto.email.GmailSendRequestDTO;
 import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
 import com.finalproject.example.EmailClientAI.entity.User;
@@ -26,4 +27,5 @@ public interface GmailService {
 
     void syncEmailsFromHistoryId(User user, String accessToken, BigInteger startHistoryId, BigInteger fallbackHistoryId);
 
+    void sendEmail(String googleAccessToken, GmailSendRequestDTO request);
 }

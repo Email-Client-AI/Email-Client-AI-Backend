@@ -1,6 +1,7 @@
 package com.finalproject.example.EmailClientAI.service.impl;
 
 import com.finalproject.example.EmailClientAI.dto.AuthenticationDTO;
+import com.finalproject.example.EmailClientAI.entity.UserSession;
 import com.finalproject.example.EmailClientAI.repository.UserSessionRepository;
 import com.finalproject.example.EmailClientAI.service.AuthenticationService;
 import com.finalproject.example.EmailClientAI.service.GoogleOAuthService;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -136,6 +138,9 @@ public class AuthenticationServiceIml implements AuthenticationService {
                 .path("/")            // 4. Available across the app
                 .build();
     }
+
+
+
 
     private AuthenticationResponse buildAuthenticationResponse(User user) {
         String acId = UUID.randomUUID().toString();

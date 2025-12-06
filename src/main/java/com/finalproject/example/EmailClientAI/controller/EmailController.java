@@ -1,10 +1,18 @@
 package com.finalproject.example.EmailClientAI.controller;
 
 import com.finalproject.example.EmailClientAI.dto.email.EmailDTO;
+import com.finalproject.example.EmailClientAI.dto.email.GmailSendRequestDTO;
 import com.finalproject.example.EmailClientAI.dto.email.ListEmailDTO;
 import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
+import com.finalproject.example.EmailClientAI.entity.User;
+import com.finalproject.example.EmailClientAI.entity.UserSession;
+import com.finalproject.example.EmailClientAI.exception.AppException;
+import com.finalproject.example.EmailClientAI.exception.ErrorCode;
+import com.finalproject.example.EmailClientAI.security.SecurityUtils;
+import com.finalproject.example.EmailClientAI.service.AuthenticationService;
 import com.finalproject.example.EmailClientAI.service.EmailService;
 import com.finalproject.example.EmailClientAI.service.GmailService;
+import com.finalproject.example.EmailClientAI.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +29,7 @@ import java.util.*;
 public class EmailController {
     private final EmailService emailService;
     private final GmailService gmailService;
+    private final UserService userService;
 
     @GetMapping("/details/{id}")
     public ResponseEntity<EmailDTO> getEmail(@PathVariable UUID id) {
@@ -66,6 +75,19 @@ public class EmailController {
     @PostMapping("/webhooks/gmail")
     public ResponseEntity<Void> handleGmailWebhook(@RequestBody PubSubMessageDTO pubSubMessageDTO) {
         gmailService.processGmailWebhook(pubSubMessageDTO);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/send")
+    public ResponseEntity<Void> sendEmail(@RequestBody GmailSendRequestDTO request) {
+        // Authenticate User
+        User user = SecurityUtils.getCurrentLoggedInUser()
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        UserSession session = userService.findActiveSession(user.getId());
+
+        // Send
+        gmailService.sendEmail(session.getGoogleAccessToken(), request);
+
         return ResponseEntity.ok().build();
     }
 

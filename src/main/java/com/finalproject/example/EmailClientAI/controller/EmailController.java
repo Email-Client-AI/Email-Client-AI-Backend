@@ -3,6 +3,7 @@ package com.finalproject.example.EmailClientAI.controller;
 import com.finalproject.example.EmailClientAI.dto.email.*;
 import com.finalproject.example.EmailClientAI.entity.User;
 import com.finalproject.example.EmailClientAI.entity.UserSession;
+import com.finalproject.example.EmailClientAI.enumeration.EmailStatus;
 import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
 import com.finalproject.example.EmailClientAI.security.SecurityUtils;
@@ -21,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.*;
 
 @RestController
@@ -113,6 +115,43 @@ public class EmailController {
 
         // Send
         gmailService.sendEmail(session.getGoogleAccessToken(), request);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{emailId}/status/{status}")
+    public ResponseEntity<Void> updateEmailStatus(@PathVariable UUID emailId, @PathVariable String status) {
+        // Authenticate User
+        User user = SecurityUtils.getCurrentLoggedInUser()
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        var statusEnum = EmailStatus.valueOf(status);
+
+        emailService.updateEmailStatus(user.getId(), emailId, statusEnum);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{emailId}/snooze")
+    public ResponseEntity<Void> snoozeEmail(@PathVariable UUID emailId, @RequestBody String until) {
+        // Authenticate User
+        User user = SecurityUtils.getCurrentLoggedInUser()
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        var snoozeUntil = Instant.parse(until);
+
+        emailService.snoozeEmail(user.getId(), emailId, snoozeUntil );
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{emailId}/unsnooze")
+    public ResponseEntity<Void> unSnoozeEmail(@PathVariable UUID emailId) {
+        // Authenticate User
+        User user = SecurityUtils.getCurrentLoggedInUser()
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        emailService.unSnoozeEmail(user.getId(), emailId );
 
         return ResponseEntity.ok().build();
     }

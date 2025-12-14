@@ -1,6 +1,7 @@
 package com.finalproject.example.EmailClientAI.entity;
 
 import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
+import com.finalproject.example.EmailClientAI.enumeration.EmailStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -50,6 +51,10 @@ public class Email {
     @Column(name = "body_text", columnDefinition = "TEXT")
     String bodyText;
 
+    @Column(name = "status")
+    @Enumerated(EnumType.STRING)
+    EmailStatus status;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "email_recipients", joinColumns = @JoinColumn(name = "email_id"))
     @Column(name = "recipient_email")
@@ -64,4 +69,11 @@ public class Email {
     @OneToMany(mappedBy = "email", fetch = FetchType.EAGER,cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     List<Attachment> attachments = new ArrayList<>();
+
+    @PrePersist
+    public void prePersist() {
+        if (this.status == null) {
+            this.status = EmailStatus.NEW;
+        }
+    }
 }

@@ -15,5 +15,7 @@ import java.util.UUID;
 public interface SnoozedEmailRepository extends JpaRepository<SnoozedEmail, UUID> {
     Optional<SnoozedEmail> findByEmailId(UUID uuid);
 
-    List<SnoozedEmail> findBySnoozeUntilBefore(Instant instant);
+    List<SnoozedEmail> findBySnoozeUntilBeforeAndSnoozeUntilIsNotNull(Instant instant);
+
+    boolean existsByEmail(Email email);
 }

@@ -24,7 +24,7 @@ public class SnoozedEmail {
     @Column(name = "email_id", nullable = false, unique = true)
     private UUID emailId;
 
-    @Column(name = "snooze_until", nullable = false)
+    @Column(name = "snooze_until")
     private Instant snoozeUntil;
 
     @ManyToOne(fetch = FetchType.EAGER)

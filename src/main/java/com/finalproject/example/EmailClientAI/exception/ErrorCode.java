@@ -16,6 +16,7 @@ public enum ErrorCode {
     INVALID_TOKEN(401, "Invalid or expired token", HttpStatus.UNAUTHORIZED),
     INVALID_EMAIL_PASSWORD(401, "Email or password is incorrect", HttpStatus.UNAUTHORIZED),
     STATUS_NOT_FOUND(404, "Status not found", HttpStatus.NOT_FOUND),
+    EMAIL_ALREADY_SNOOZED(409, "Email is already snoozed", HttpStatus.CONFLICT),
 
     // User
     USER_NOT_FOUND(404, "User not found", HttpStatus.NOT_FOUND),

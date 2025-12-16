@@ -135,14 +135,19 @@ public class EmailController {
     }
 
     @PatchMapping("/{emailId}/snooze")
-    public ResponseEntity<Void> snoozeEmail(@PathVariable UUID emailId, @RequestBody String until) {
+    public ResponseEntity<Void> snoozeEmail(@PathVariable UUID emailId, @RequestParam String until) {
         // Authenticate User
         User user = SecurityUtils.getCurrentLoggedInUser()
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        var snoozeUntil = Instant.parse(until);
+        if(until == null || until.isEmpty()) {
+            emailService.snoozeEmail(user.getId(), emailId, null );
+        }
+        else {
+            var snoozeUntil = Instant.parse(until);
+            emailService.snoozeEmail(user.getId(), emailId, snoozeUntil );
+        }
 
-        emailService.snoozeEmail(user.getId(), emailId, snoozeUntil );
 
         return ResponseEntity.ok().build();
     }

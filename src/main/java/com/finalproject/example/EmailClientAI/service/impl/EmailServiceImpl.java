@@ -117,6 +117,9 @@ public class EmailServiceImpl implements EmailService {
         var email = emailRepository.findByIdAndUserId(emailId, userId).orElseThrow(
                 () -> new AppException(ErrorCode.EMAIL_NOT_FOUND)
         );
+        if( snoozedEmailRepository.existsByEmail(email)) {
+            throw new AppException(ErrorCode.EMAIL_ALREADY_SNOOZED);
+        }
         var snoozedEmail = SnoozedEmail.builder()
                 .emailId(email.getId())
                 .snoozeUntil(snoozeUntil)
@@ -223,7 +226,7 @@ public class EmailServiceImpl implements EmailService {
 
     private void updateSnoozedEmails() {
         var now = Instant.now();
-        var snoozedEmails = snoozedEmailRepository.findBySnoozeUntilBefore(now);
+        var snoozedEmails = snoozedEmailRepository.findBySnoozeUntilBeforeAndSnoozeUntilIsNotNull(now);
         var updatedEmails = new ArrayList<Email>();
         for(var snoozedEmail : snoozedEmails) {
             var email = snoozedEmail.getEmail();

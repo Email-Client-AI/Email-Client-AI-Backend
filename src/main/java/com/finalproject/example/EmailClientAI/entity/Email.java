@@ -1,7 +1,6 @@
 package com.finalproject.example.EmailClientAI.entity;
 
 import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
-import com.finalproject.example.EmailClientAI.enumeration.EmailStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -51,9 +50,12 @@ public class Email {
     @Column(name = "body_text", columnDefinition = "TEXT")
     String bodyText;
 
-    @Column(name = "status")
-    @Enumerated(EnumType.STRING)
-    EmailStatus status;
+    @Column(name = "status_id")
+    Long statusId;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "status_id", referencedColumnName = "id", insertable = false, updatable = false)
+    Status status;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "email_recipients", joinColumns = @JoinColumn(name = "email_id"))
@@ -72,8 +74,8 @@ public class Email {
 
     @PrePersist
     public void prePersist() {
-        if (this.status == null) {
-            this.status = EmailStatus.NEW;
+        if (this.statusId == null) {
+            this.statusId = 0L;
         }
     }
 }

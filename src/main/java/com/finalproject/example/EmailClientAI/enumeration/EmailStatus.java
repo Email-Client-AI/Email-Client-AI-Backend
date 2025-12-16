@@ -1,25 +1,19 @@
 package com.finalproject.example.EmailClientAI.enumeration;
 
 public enum EmailStatus {
-    NEW("NEW"),
-    READ("READ"),
-    REMOVED("REMOVED"),
-    STARRED("STARRED"),
-    SNOOZED("SNOOZED"),
-    TODO("TODO"),
-    INPROGRESS("INPROGRESS"),
-    DONE("DONE");
+    NEW(0L),
+    SNOOZED(1L);
 
 
 
-    private final String value;
+    private final Long value;
 
-    EmailStatus(String value) {
+    EmailStatus(Long value) {
         this.value = value;
     }
 
     // Helper to find Enum from string (Safe lookup)
-    public static EmailStatus fromId(String id) {
+    public static EmailStatus fromId(Long id) {
         for (EmailStatus status : values()) {
             if (status.value.equals(id)) {
                 return status;

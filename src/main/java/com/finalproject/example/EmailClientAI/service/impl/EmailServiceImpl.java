@@ -5,13 +5,14 @@ import com.finalproject.example.EmailClientAI.dto.email.ListEmailDTO;
 import com.finalproject.example.EmailClientAI.dto.email.PubSubMessageDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
 import com.finalproject.example.EmailClientAI.entity.SnoozedEmail;
+import com.finalproject.example.EmailClientAI.entity.Status;
 import com.finalproject.example.EmailClientAI.enumeration.EmailLabel;
-import com.finalproject.example.EmailClientAI.enumeration.EmailStatus;
 import com.finalproject.example.EmailClientAI.exception.AppException;
 import com.finalproject.example.EmailClientAI.exception.ErrorCode;
 import com.finalproject.example.EmailClientAI.mapper.EmailMapper;
 import com.finalproject.example.EmailClientAI.repository.EmailRepository;
 import com.finalproject.example.EmailClientAI.repository.SnoozedEmailRepository;
+import com.finalproject.example.EmailClientAI.repository.StatusRepository;
 import com.finalproject.example.EmailClientAI.security.SecurityUtils;
 import com.finalproject.example.EmailClientAI.service.EmailService;
 import jakarta.persistence.criteria.JoinType;
@@ -35,6 +36,7 @@ public class EmailServiceImpl implements EmailService {
     private final EmailRepository emailRepository;
     private final EmailMapper emailMapper;
     private final SnoozedEmailRepository snoozedEmailRepository;
+    private final StatusRepository statusRepository;
 
     @Override
     @Transactional
@@ -101,11 +103,11 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     @Transactional
-    public void updateEmailStatus(UUID userId, UUID emailId, EmailStatus newStatus) {
+    public void updateEmailStatus(UUID userId, UUID emailId, Long newStatus) {
         var email = emailRepository.findByIdAndUserId(emailId, userId).orElseThrow(
                 () -> new AppException(ErrorCode.EMAIL_NOT_FOUND)
         );
-        email.setStatus(newStatus);
+        email.setStatusId(newStatus);
         emailRepository.save(email);
     }
 
@@ -122,7 +124,11 @@ public class EmailServiceImpl implements EmailService {
                 .build();
         snoozedEmailRepository.save(snoozedEmail);
 
-        email.setStatus(EmailStatus.SNOOZED);
+        var snoozedStatus = statusRepository.findByName("SNOOZED").orElseThrow(
+                () -> new AppException(ErrorCode.STATUS_NOT_FOUND)
+        );
+
+        email.setStatusId(snoozedStatus.getId());
         emailRepository.save(email);
     }
 
@@ -134,9 +140,15 @@ public class EmailServiceImpl implements EmailService {
         );
         var email = emailRepository.findByIdAndUserId(emailId, userId).orElseThrow(
                 () -> new AppException(ErrorCode.EMAIL_NOT_FOUND));
-        email.setStatus(snoozedEmail.getPreviousStatus());
+        email.setStatusId(snoozedEmail.getPreviousStatus().getId());
         emailRepository.save(email);
         snoozedEmailRepository.delete(snoozedEmail);
+    }
+
+    @Override
+    public List<EmailDTO> getEmailsByIds(List<UUID> ids) {
+        var emails = emailRepository.findAllById(ids);
+        return emails.stream().map(emailMapper::toDto).toList();
     }
 
 
@@ -145,7 +157,7 @@ public class EmailServiceImpl implements EmailService {
         var from = Optional.ofNullable(filters.remove("from")).filter(StringUtils::isNotBlank).map(Instant::parse).orElse(null);
         var to = Optional.ofNullable(filters.remove("to")).filter(StringUtils::isNotBlank).map(Instant::parse).orElse(null);
         var category = filters.remove("category");
-        var status = filters.remove("status");
+        var status = filters.remove("statusId");
 
         if (StringUtils.isNotBlank(searchString)) {
             query = query.and(applySearchFilter(searchString));
@@ -167,13 +179,14 @@ public class EmailServiceImpl implements EmailService {
             updateSnoozedEmails();
 
             // 1. Split the string by comma
-            List<EmailStatus> statusList = Arrays.stream(status.split(","))
+            List<Long> statuIds = Arrays.stream(status.split(","))
                     .map(String::trim)
-                    .map(EmailStatus::valueOf) // Convert String to Enum
+                    .map(Long::parseLong)
                     .collect(Collectors.toList());
+            List<Status> statuses = statusRepository.findAllById(statuIds);
 
             // 2. Add the IN filter
-            query = query.and((root, q, cb) -> root.get("status").in(statusList));
+            query = query.and((root, q, cb) -> root.get("status").in(statuses));
         }
 
 
@@ -214,7 +227,7 @@ public class EmailServiceImpl implements EmailService {
         var updatedEmails = new ArrayList<Email>();
         for(var snoozedEmail : snoozedEmails) {
             var email = snoozedEmail.getEmail();
-            email.setStatus(snoozedEmail.getPreviousStatus());
+            email.setStatusId(snoozedEmail.getPreviousStatus().getId());
             updatedEmails.add(email);
         }
         emailRepository.saveAll(updatedEmails);

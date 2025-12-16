@@ -4,7 +4,7 @@ import com.finalproject.example.EmailClientAI.dto.email.EmailDTO;
 import com.finalproject.example.EmailClientAI.entity.Email;
 import org.mapstruct.Mapper;
 
-@Mapper(componentModel = "spring", uses= {AttachmentMapper.class})
+@Mapper(componentModel = "spring", uses= {AttachmentMapper.class, StatusMapper.class})
 public interface EmailMapper extends EntityMapper<EmailDTO, Email> {
 
 }

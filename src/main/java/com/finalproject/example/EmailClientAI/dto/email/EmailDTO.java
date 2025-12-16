@@ -1,5 +1,6 @@
 package com.finalproject.example.EmailClientAI.dto.email;
 
+import com.finalproject.example.EmailClientAI.entity.Status;
 import lombok.*;
 
 import java.time.Instant;
@@ -22,6 +23,7 @@ public class EmailDTO {
     String subject;
     String senderEmail;
     Instant receivedDate;
+    String aiSummary;
 
     // You might want to exclude bodyHtml in a "List View" API to save bandwidth,
     // but for a general DTO, it is included.
@@ -32,4 +34,5 @@ public class EmailDTO {
     Set<String> labels;
 
     List<AttachmentDTO> attachments;
+    Status status;
 }

@@ -122,6 +122,9 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
             gmailService.syncEmailsFromHistoryId(user, googleAccessToken, user.getLastHistoryId(), null);
         }
 
+        gmailService.sendUserWatchRequest(googleAccessToken, user.getId().toString());
+
+
         var userDTO = userMapper.toDto(user);
         return AuthenticationDTO.builder()
                 .refreshToken(rawToken)

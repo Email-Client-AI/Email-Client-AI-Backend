@@ -53,6 +53,7 @@ public class GmailServiceImpl implements GmailService {
     private final UserService userService;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper;
+    private final PythonEmailClient pythonEmailClient;
 
     @Override
     @Async
@@ -97,7 +98,6 @@ public class GmailServiceImpl implements GmailService {
                     }
                 }
             }
-            sendUserWatchRequest(googleAccessToken, userId);
             log.info("Finished background sync for user: {}", userId);
 
         } catch (Exception e) {
@@ -195,7 +195,21 @@ public class GmailServiceImpl implements GmailService {
         email = emailRepository.save(email); // Save to get emailID for attachments
         parseHeaders(dto.getPayload().getHeaders(), email);
         parsePayload(dto.getPayload(), email);
-        return emailRepository.save(email);
+
+        StringBuilder contentBuilder = new StringBuilder();
+        if (email.getSubject() != null) contentBuilder.append("Subject: ").append(email.getSubject()).append("\n");
+        if (email.getSenderEmail() != null) contentBuilder.append("From: ").append(email.getSenderEmail()).append("\n");
+        if (email.getBodyText() != null) {
+            contentBuilder.append(email.getBodyText());
+        } else if (email.getSnippet() != null) {
+            contentBuilder.append(email.getSnippet());
+        }
+
+        email = emailRepository.save(email);
+
+        pythonEmailClient.ingestEmail(email.getId(), contentBuilder.toString());
+
+        return email;
     }
 
     @Override

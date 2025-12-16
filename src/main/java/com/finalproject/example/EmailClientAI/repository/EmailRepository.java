@@ -18,4 +18,6 @@ public interface EmailRepository extends JpaRepository<Email, UUID>, JpaSpecific
     boolean existsByGmailEmailIdAndUserId(String gmailMessageId, UUID userId);
 
     List<Email> findByThreadIdAndUserId(String threadId, UUID userId);
+
+    List<Email> getEmailByThreadId(String threadId);
 }

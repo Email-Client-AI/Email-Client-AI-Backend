@@ -15,6 +15,7 @@ public enum ErrorCode {
     UNAUTHORIZED(403, "You do not have permission", HttpStatus.FORBIDDEN),
     INVALID_TOKEN(401, "Invalid or expired token", HttpStatus.UNAUTHORIZED),
     INVALID_EMAIL_PASSWORD(401, "Email or password is incorrect", HttpStatus.UNAUTHORIZED),
+    STATUS_NOT_FOUND(404, "Status not found", HttpStatus.NOT_FOUND),
 
     // User
     USER_NOT_FOUND(404, "User not found", HttpStatus.NOT_FOUND),
@@ -30,6 +31,8 @@ public enum ErrorCode {
     // General
     UNCATEGORIZED_EXCEPTION(500, "Uncategorized exception", HttpStatus.INTERNAL_SERVER_ERROR),
     VALIDATION_ERROR(400, "Validation error", HttpStatus.BAD_REQUEST),
+    ERROR_IN_INGRESTING_EMAIL(500, "Error in ingesting email", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_SUMMARY_REQUEST(400, "Invalid summary request", HttpStatus.BAD_REQUEST),
 
     INVALID_LOGOUT_REQUEST(400, "Invalid logout request", HttpStatus.BAD_REQUEST),
     INVALID_REFRESH_REQUEST(400, "Invalid refresh token request", HttpStatus.BAD_REQUEST),

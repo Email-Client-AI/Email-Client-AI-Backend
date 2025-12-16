@@ -1,6 +1,5 @@
 package com.finalproject.example.EmailClientAI.entity;
 
-import com.finalproject.example.EmailClientAI.enumeration.EmailStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -28,9 +27,9 @@ public class SnoozedEmail {
     @Column(name = "snooze_until", nullable = false)
     private Instant snoozeUntil;
 
-    @Column(name = "previous_status", nullable = false)
-    @Enumerated(EnumType.STRING)
-    private EmailStatus previousStatus;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "previous_status", referencedColumnName = "id")
+    private Status previousStatus;
 
     @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "email_id", referencedColumnName = "id", insertable = false, updatable = false)

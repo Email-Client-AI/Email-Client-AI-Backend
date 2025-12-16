@@ -55,7 +55,10 @@ public class SecurityConfig {
   String[] PUBLIC_GET_ENDPOINTS = {
       "/v3/api-docs/**",
       "/swagger-ui/**",
-      "/swagger-ui.html"
+      "/swagger-ui.html",
+//      "/api/emails/search",
+//      "/api/emails/suggest",
+//      "/api/emails/summarize"
   };
 
     private final JWTAuthFilter jwtAuthFilter;
